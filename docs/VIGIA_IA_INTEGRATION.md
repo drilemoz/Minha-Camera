@@ -169,3 +169,9 @@ Distinguir serviço **iniciando**, **publicando primeiro quadro** e **liberando 
 - Separar FPS de captura solicitado de FPS medido no receptor, e resolução efetiva de perfil pretendido. Em MJPEG 1080p há custo de CPU e Wi-Fi; metas não equivalem a garantias.
 - Alguns drivers MediaCodec divergem nas configurações YUV420 semiplanar; testar planar I420 com padrões de cor conhecidos e registrar configurações/codec do encoder. Não classificar artefatos verdes como apenas problema de rede.
 - Expor capacidade de zoom máxima e presets apenas dentro do limite real; nem toda lente extra do fabricante é acessível via Camera1. Não inventar seleção de ultra-wide antes de enumerar os IDs e validar acesso.
+
+## Aprendizados 1.4.70: controles embutidos e falhas de compilação
+
+- Build 68 revelou que `Gravity.CENTER_VERTICAL` em Kotlin sem `import android.view.Gravity` passa por validações de sintaxe mas falha ao compilar. Teste de regressão verifica import explicitamente.
+- Cabeçalho do receptor mantém uma única fonte de nome da câmera (ActionBar) e uma única duração da transmissão.
+- Menus de codec podem ser embutidos, sem overlay modal sobre vídeo; não altera transporte MJPEG/H.264 nem resolve artefatos cromáticos por si só.

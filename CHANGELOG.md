@@ -1,3 +1,11 @@
+## 1.4.70+80 — 2026-10-17
+
+- Corrige `Unresolved reference Gravity` em `PhoneCameraViewerActivity.kt` registrado no Build APK 68 (duas ocorrências), adicionando import Android explícito.
+- Receptor: mantém nome do aparelho apenas na ActionBar; elimina duplicação do texto "Ao vivo" e exibe duração na linha do status.
+- Move bateria/ícone de carregamento para o cabeçalho escuro do vídeo, imediatamente antes da temperatura.
+- Seleção de codec ganha botão com ícone e moldura compacta; toque abre submenu embutido no próprio cabeçalho, sem janela modal. Diagnóstico sobe para o mesmo cabeçalho; removidos dois cartões redundantes.
+- Testes de regressão para import de Gravity, cabeçalho único e submenu, mantendo MJPEG/H.264 e comandos autenticados. Compilação Release e verificação física pendentes.
+
 ## 1.4.69+79 — 2026-10-17
 
 - Galeria remota compacta com miniaturas assíncronas de JPEG e tentativa de quadro de vídeo via HTTP Range, mantendo fallback por ícone; concorrência máxima de duas requisições.

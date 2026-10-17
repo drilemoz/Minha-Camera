@@ -1,6 +1,8 @@
 # Minha Câmera
 
-**Versão atual: 1.4.69 (versionCode 79)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.70 (versionCode 80)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+
+**Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 
 **Novo em 1.4.69:** galeria remota com miniaturas de fotos, prévia de vídeo quando extração por HTTP é suportada, ações compactas e download diretamente nas coleções Fotos/Vídeos da pasta MinhaCamera. Correção de rotação do JPEG nativo, atalhos de zoom por capacidade anunciada, indicadores de FPS real/meta/resolução e saída superior da tela cheia. H.264 continua experimental: preferência por YUV planar quando anunciado, artefatos verdes exigem validação no Redmi A3. Build Android e teste físico pendentes.
 

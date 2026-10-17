@@ -33,7 +33,7 @@ def test_receiver_cards_and_all_click_handlers():
     root = ET.parse(RES / "activity_phone_viewer.xml").getroot()
     grid = next(e for e in root.iter() if e.attrib.get(NS+"id") == "@+id/phoneViewerControls")
     assert grid.tag == "GridLayout" and grid.attrib.get(NS+"columnCount") == "5"
-    assert len(list(grid)) == 19
+    assert len(list(grid)) == 18
     assert all(tile.attrib.get(NS+"clickable") == "true" for tile in grid)
     for tile in grid:
         id_ = tile.attrib[NS+"id"].replace("@+id/", "")

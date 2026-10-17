@@ -17,6 +17,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 import android.view.View
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.WindowManager
@@ -67,6 +68,9 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
 
     private lateinit var pipHost: FrameLayout
     private lateinit var codecButton: TextView
+    private lateinit var codecSubmenu: View
+    private lateinit var codecMjpegOption: TextView
+    private lateinit var codecH264Option: TextView
     private lateinit var remoteClock: TextView
     private var viewerCodec = "mjpeg"
     private var vlcCore: LibVLC? = null
@@ -241,12 +245,16 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_phone_viewer)
         title = intent.getStringExtra("name") ?: getString(R.string.phone_camera)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        // Cabeçalho da câmera obtido do cadastro ou do endereço, nunca inventa o modelo.
-        findViewById<TextView>(R.id.viewerCameraName).text = title
+        // O título nativo da ActionBar é a única exibição do nome do aparelho.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         codecButton = findViewById(R.id.viewerCodecTop)
         remoteClock = findViewById(R.id.viewerTransmissionClock)
+        codecSubmenu = findViewById(R.id.viewerCodecSubmenu)
+        codecMjpegOption = findViewById(R.id.viewerCodecMjpegOption)
+        codecH264Option = findViewById(R.id.viewerCodecH264Option)
         codecButton.setOnClickListener { chooseRemoteCodec() }
+        codecMjpegOption.setOnClickListener { changeRemoteCodec("mjpeg") }
+        codecH264Option.setOnClickListener { changeRemoteCodec("h264") }
         findViewById<View>(R.id.viewerDiagnosticTop).setOnClickListener { showRemoteDiagnostic() }
         batteryPill = findViewById(R.id.viewerBatteryPill)
         temperatureLabel = findViewById(R.id.viewerTemperature)
@@ -384,8 +392,6 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
                 .putExtra("url", intent.getStringExtra("url")))
         }
         findViewById<View>(R.id.viewerDetailsAction).setOnClickListener { toggleTechnicalDetails() }
-        findViewById<View>(R.id.viewerCodecAction).setOnClickListener { chooseRemoteCodec() }
-        findViewById<View>(R.id.viewerDiagnosticsAction).setOnClickListener { showRemoteDiagnostic() }
         // Mantém cinco colunas nas telas usuais e reduz em dispositivos muito estreitos.
         controls.post { adaptControlColumns() }
         refreshPreviewOrientation()
@@ -956,17 +962,27 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         }
     }
 
+    /** Seletor de formato embutido no cabeçalho. Nunca recobre o vídeo. */
     private fun chooseRemoteCodec() {
-        val options = arrayOf("MJPEG • compatibilidade", "H.264 • experimental")
-        PhoneViewerChoiceDialog.show(this, getString(R.string.phone_codec_title),
-            "MJPEG é mais compatível; H.264 continua experimental", options,
-            intArrayOf(R.drawable.ic_ui_video, R.drawable.ic_ui_video),
-            if (viewerCodec == "h264") 1 else 0) { index ->
-            val next = if (index == 1) "h264" else "mjpeg"
-            if (next != viewerCodec) postRemote(
-                PhoneCameraUrls.codecCommandUrl(intent.getStringExtra("url").orEmpty(), next),
-                R.string.phone_codec_changed) { stop(); start() }
-        }
+        val opening = codecSubmenu.visibility != View.VISIBLE
+        codecSubmenu.visibility = if (opening) View.VISIBLE else View.GONE
+        if (opening) updateCodecSubmenu()
+    }
+
+    private fun updateCodecSubmenu() {
+        codecMjpegOption.text = if (viewerCodec == "mjpeg")
+            "✓ MJPEG · compatibilidade" else "MJPEG · compatibilidade"
+        codecH264Option.text = if (viewerCodec == "h264")
+            "✓ H.264 · experimental" else "H.264 · experimental"
+        codecMjpegOption.isSelected = viewerCodec == "mjpeg"
+        codecH264Option.isSelected = viewerCodec == "h264"
+    }
+
+    private fun changeRemoteCodec(next: String) {
+        codecSubmenu.visibility = View.GONE
+        if (next == viewerCodec) return
+        postRemote(PhoneCameraUrls.codecCommandUrl(intent.getStringExtra("url").orEmpty(), next),
+            R.string.phone_codec_changed) { stop(); start() }
     }
 
     private fun showRemoteDiagnostic() {
@@ -1024,7 +1040,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
 
     private fun applyRemoteStatus(state: RemoteStatus) {
         state.transmissionSeconds?.let { seconds ->
-            remoteClock.text = String.format(Locale.US, "AO VIVO %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+            remoteClock.text = String.format(Locale.US, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
         }
         remoteRecording = state.recording ?: remoteRecording
         remoteEco = state.eco ?: remoteEco
@@ -1292,9 +1308,10 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         if (uri == null) { status.setText(R.string.phone_invalid_url); return }
         NetUtil.bindToWifi(this)
         active = true
+        codecSubmenu.visibility = View.GONE
         viewerCodec = "mjpeg"
         codecButton.text = "MJPEG"
-        remoteClock.text = getString(R.string.phone_clock_idle)
+        remoteClock.text = "00:00:00"
         val session = ++attempts
         mjpegStatusPending = false
         statusHandler.removeCallbacks(mjpegStatusTick)
@@ -1432,7 +1449,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
                             if (streamSecondsHeader != null) {
                                 val seconds = streamSecondsHeader
                                 runOnUiThread { if (active && attempts == session) remoteClock.text =
-                                    String.format(Locale.US, "AO VIVO %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60) }
+                                    String.format(Locale.US, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60) }
                             }
                             val lag = PhoneDeliveryDelay.estimateMs(SystemClock.elapsedRealtime(), frameAtMs, offset)
                             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,

@@ -1,3 +1,11 @@
+# Minha Câmera 1.4.70 (versionCode 80)
+
+- Build APK 68: erro Kotlin de `Gravity` no controle de zoom corrigido.
+- Receptor sem repetição do nome e da expressão "Ao vivo"; duração na mesma linha do status, bateria/carregamento e temperatura lado a lado.
+- Codec e Diagnóstico ficam no cabeçalho da tela; botão com ícone e submenu de codec integrado em vez de pop-up, com alerta para H.264 experimental.
+- Reduzida a grade, removendo os dois cartões redundantes de Codec e Diagnóstico. Comandos remotos e visualização mantidos.
+- Código-fonte: Gradle Release e testes reais Android ainda não executados neste ambiente.
+
 # Minha Câmera 1.4.69 (versionCode 79)
 
 - Biblioteca remota com miniaturas, botões menores e downloads diretos à galeria MinhaCamera (Fotos/Vídeos).

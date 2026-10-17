@@ -144,7 +144,13 @@ Experimente habilitar H.264 ou outro perfil na câmera e refazer a busca.</strin
     <string name="phone_reconnecting">Sinal perdido. Reconectando…</string>
     <string name="phone_access_denied">Acesso negado. Escaneie o novo QR.</string>
     <string name="viewer_remote_zoom_requested">Zoom solicitado à câmera</string>
-    <string name="novidades_text">Versão 1.4.69 (código 79)
+    <string name="novidades_text">Versão 1.4.70 (código 80)
+- Corrigido Build APK 68: referência Kotlin Gravity não resolvida no zoom.
+- Receptor sem nome duplicado; Ao vivo e tempo na mesma linha.
+- Bateria/carregando e temperatura reunidos sobre a prévia.
+- Codec e Diagnóstico reunidos no cabeçalho; submenu do codec substitui popup, com ícones.
+- Removidos dois cartões redundantes da grade.
+- H.264 segue experimental; imagens verdes exigem validação no Redmi A3.
 - Biblioteca remota com miniaturas de mídia e downloads automáticos para MinhaCamera.
 - Foto nativa orientada; zoom com limite real, presets e Restaurar.
 - Tela cheia com Sair; detalhes e FPS real/meta; H.264 experimental em teste.
