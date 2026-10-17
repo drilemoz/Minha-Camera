@@ -69,6 +69,22 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
     private var lastHeatText = ""
     private val streamStats = PhoneStreamStats()
     private val publishedFps = PhonePublishedFps()
+    private val pipelineProbe = PhonePipelineTelemetry("Activity MJPEG")
+    private var freezeObserver: PhoneFreezeObserver? = null
+    private var lastCapturedFreezeAt = 0L
+    private val pipelineTick = object : Runnable {
+        override fun run() {
+            if (!visible || backgroundMode || server == null) return
+            val now = SystemClock.elapsedRealtime()
+            if (!transmissionPaused && pipelineProbe.publishAge(now) > 12000L &&
+                now - lastCapturedFreezeAt > 30000L) {
+                lastCapturedFreezeAt = now
+                PhoneStreamDiagnostics.captureFreeze(applicationContext, "Activity / MJPEG",
+                    pipelineProbe.snapshot(now))
+            }
+            uiHandler.postDelayed(this, 6000)
+        }
+    }
     private val performanceTick = object : Runnable {
         override fun run() {
             if (!visible) return
@@ -501,6 +517,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
         backgroundMode = PhoneCameraBackgroundService.running || backgroundMode
         if (PhoneCameraBackgroundService.running) backgroundRequestedAt = SystemClock.elapsedRealtime() - 10_000L
         uiHandler.removeCallbacks(performanceTick)
+        uiHandler.removeCallbacks(pipelineTick)
         uiHandler.removeCallbacks(backgroundTick)
         if (backgroundMode) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -510,6 +527,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
             if (transmissionEnabled) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             uiHandler.postDelayed(performanceTick, 2000)
+            uiHandler.postDelayed(pipelineTick, 6000)
             surfaceReady = preview.isAvailable
             tryStart()
         }
@@ -524,6 +542,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
         visible = false
         orientationSensor.disable()
         uiHandler.removeCallbacks(performanceTick)
+        uiHandler.removeCallbacks(pipelineTick)
         uiHandler.removeCallbacks(backgroundTick)
         uiHandler.removeCallbacks(clockTick)
         if (!backgroundMode) {
@@ -940,6 +959,11 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
             lastCapture = 0L
             server = session
             streamStats.reset(SystemClock.elapsedRealtime())
+            pipelineProbe.reset(SystemClock.elapsedRealtime())
+            freezeObserver?.stop()
+            freezeObserver = PhoneFreezeObserver(applicationContext, "activity-mjpeg", pipelineProbe) {
+                visible && !backgroundMode && server === session && !transmissionPaused
+            }
             txPerformance.setText(R.string.phone_performance_waiting)
             restartPerformanceTicker()
             worker = if (worker.isShutdown) Executors.newSingleThreadExecutor() else worker
@@ -947,6 +971,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
             val byteCount = size.width * size.height * 3 / 2
             c.setPreviewCallbackWithBuffer { data, source ->
                 if (data != null && visible && server === session && data.size >= byteCount) {
+                    pipelineProbe.callback(SystemClock.elapsedRealtime())
                     receivedCameraFrames = true
                 }
                 if (data != null && visible && server === session && data.size >= byteCount &&
@@ -956,16 +981,21 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
                             else PhoneEcoPolicy.intervalMs(ecoEnabled, heatState)) &&
                     encoding.compareAndSet(false, true)) {
                     lastCapture = SystemClock.elapsedRealtime()
+                    pipelineProbe.accepted(lastCapture)
                     val snapshot = data.copyOf(byteCount)
                     val streamRotation = frameRotation
                     try {
                         worker.execute {
                             try {
+                                pipelineProbe.worker(SystemClock.elapsedRealtime())
                                 val frame = Nv21Frames.rotated(snapshot, size.width, size.height, streamRotation)
                                 val w = if (streamRotation % 180 == 0) size.width else size.height
                                 val h = if (streamRotation % 180 == 0) size.height else size.width
                                 publishFrame(session, frame, w, h, false)
-                            } catch (_: Exception) { } finally { encoding.set(false) }
+                            } catch (e: Exception) {
+                                pipelineProbe.failed(e.javaClass.simpleName)
+                                PhoneStreamDiagnostics.add("Falha no processamento da Activity: ${e.javaClass.simpleName}")
+                            } finally { encoding.set(false) }
                         }
                     } catch (_: Exception) { encoding.set(false) }
                 }
@@ -1123,6 +1153,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
         val encoded = jpeg.toByteArray()
         if (!transmissionPaused) {
             session.publish(encoded, battery)
+            pipelineProbe.published(SystemClock.elapsedRealtime())
             streamStats.frame()
             publishedFps.mark(SystemClock.elapsedRealtime())
             if (!publishedStreamFrame) {
@@ -1515,12 +1546,17 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
             "iniciando=${PhoneCameraBackgroundService.starting}, " +
             "liberando=${PhoneCameraBackgroundService.releasing}, " +
             "primeiroQuadro=${PhoneCameraBackgroundService.firstFramePublished}, " +
-            "últimoErro=${PhoneCameraBackgroundService.lastError ?: "nenhum"}")
+            "últimoErro=${PhoneCameraBackgroundService.lastError ?: "nenhum"}\n" +
+            pipelineProbe.snapshot(SystemClock.elapsedRealtime()))
         val safe = report.replace(Regex("(?i)(token|password|secret|apikey)=([^\\s&]+)"), "$1=[REDACTED]")
         CameraReportDialog(this, getString(R.string.phone_diagnostic_title), safe, { text ->
             diagnosticToExport = text
             diagnosticExporter.launch("Minha-Camera-diagnostico-local.txt")
-        }, "Relatório local • não compartilhe endereços privados sem revisar").show()
+        }, "Relatório local • não compartilhe endereços privados sem revisar",
+            toggleInvestigation = {
+                PhoneStreamDiagnostics.setInvestigation(this,
+                    !PhoneStreamDiagnostics.investigationEnabled(this))
+            }).show()
     }
 
     private fun openQrDialog() {
@@ -1610,6 +1646,8 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
     }
 
     private fun stopStreaming() {
+        freezeObserver?.stop()
+        freezeObserver = null
         recordingRequested = false
         uiHandler.removeCallbacks(recordTick)
         // O relógio continua ativo na tela e reflete imediatamente uma nova sessão ou parada.

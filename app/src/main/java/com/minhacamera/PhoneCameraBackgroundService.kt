@@ -152,6 +152,8 @@ class PhoneCameraBackgroundService : Service() {
     @Volatile private var remoteResolution = ""
     @Volatile private var requestedQuality = 480
     private val publishedFps = PhonePublishedFps()
+    private val pipelineProbe = PhonePipelineTelemetry("serviço MJPEG/H264")
+    private var freezeObserver: PhoneFreezeObserver? = null
     @Volatile private var fpsLimit = 10
     @Volatile private var switching = false
     @Volatile private var takingPhoto = false
@@ -207,6 +209,8 @@ class PhoneCameraBackgroundService : Service() {
             val age = SystemClock.elapsedRealtime() - lastPublishedAtMs
             if (age > 4_000) PhoneStreamDiagnostics.add("Sem quadros publicados por ${age}ms; codec=$liveCodec; captura=${SystemClock.elapsedRealtime()-lastCaptureAtMs}ms; ${headlessPreview?.health()}")
             if (age > 12_000 && !switching && !takingPhoto && !recording) {
+                PhoneStreamDiagnostics.captureFreeze(applicationContext, "serviço / $liveCodec",
+                    pipelineProbe.snapshot(SystemClock.elapsedRealtime()) + "\n" + (headlessPreview?.health() ?: "sem superfície"))
                 if (watchdogRestarts >= 3) {
                     lastError = "A câmera parou de enviar quadros após tentativas de recuperação"
                     stopCaptureAndFinish()
@@ -492,6 +496,11 @@ class PhoneCameraBackgroundService : Service() {
             running = true
             if (orientationSensor.canDetectOrientation()) orientationSensor.enable()
             transmissionStartedMs = SystemClock.elapsedRealtime()
+            pipelineProbe.reset(transmissionStartedMs)
+            freezeObserver?.stop()
+            freezeObserver = PhoneFreezeObserver(applicationContext, "tela-apagada", pipelineProbe) {
+                running && !closing && !switching && !takingPhoto
+            }
             PhoneStreamDiagnostics.add("Transmissão iniciada: perfil=$requestedQuality, fps=$fpsLimit, codec=$liveCodec")
             lastPublishedAtMs = SystemClock.elapsedRealtime()
             mainHandler.postDelayed(frameWatchdog, 6000)
@@ -605,7 +614,8 @@ class PhoneCameraBackgroundService : Service() {
         lastCapture = 0L
         lastPublishedAtMs = SystemClock.elapsedRealtime()
         opened.setPreviewCallbackWithBuffer { bytes, source ->
-            if (bytes != null) { lastCaptureAtMs = SystemClock.elapsedRealtime(); frameCount++ }
+            if (bytes != null) { lastCaptureAtMs = SystemClock.elapsedRealtime(); frameCount++
+                pipelineProbe.callback(lastCaptureAtMs) }
             if (bytes != null && server === session && !closing && !switching &&
                 bytes.size >= byteCount &&
                 SystemClock.elapsedRealtime() - lastCapture >= maxOf(1000L / fpsLimit.coerceAtLeast(1),
@@ -613,19 +623,23 @@ class PhoneCameraBackgroundService : Service() {
                     else PhoneEcoPolicy.intervalMs(ecoEnabled, heatState)) &&
                 encoding.compareAndSet(false, true)) {
                 lastCapture = SystemClock.elapsedRealtime()
+                pipelineProbe.accepted(lastCapture)
                 val snapshot = bytes.copyOf(byteCount)
                 val rotationForFrame = frameRotationDegrees
                 try {
                     encodeWorker.execute {
                         try {
+                            pipelineProbe.worker(SystemClock.elapsedRealtime())
                             if (server === session && !closing && !switching) {
                                 val rotated = Nv21Frames.rotated(snapshot, size.width, size.height, rotationForFrame)
                                 val width = if (rotationForFrame % 180 == 0) size.width else size.height
                                 val height = if (rotationForFrame % 180 == 0) size.height else size.width
                                 publish(session, rotated, width, height)
                             }
-                        } catch (_: Exception) { }
-                        finally { encoding.set(false) }
+                        } catch (e: Exception) {
+                            pipelineProbe.failed(e.javaClass.simpleName)
+                            PhoneStreamDiagnostics.add("Falha no worker de vídeo: ${e.javaClass.simpleName}")
+                        } finally { encoding.set(false) }
                     }
                 } catch (_: Exception) { encoding.set(false) }
             }
@@ -720,6 +734,7 @@ class PhoneCameraBackgroundService : Service() {
                         server?.publishAvc(bytes)
                         publishedFps.mark(SystemClock.elapsedRealtime())
                         lastPublishedAtMs = SystemClock.elapsedRealtime()
+                        pipelineProbe.published(lastPublishedAtMs)
                         markFirstPublishedFrame()
                         watchdogRestarts = 0
                     }
@@ -735,6 +750,7 @@ class PhoneCameraBackgroundService : Service() {
                 }
             } catch (e: Exception) {
                 h264FailedThisSession = true
+                pipelineProbe.failed(e.javaClass.simpleName)
                 PhoneStreamDiagnostics.add("Encoder H264: ${e.javaClass.simpleName}; " +
                     "retornando para MJPEG, H.264 bloqueado nesta sessão")
                 lastError = "H.264 indisponível: ${e.javaClass.simpleName}"
@@ -753,6 +769,7 @@ class PhoneCameraBackgroundService : Service() {
         latestJpeg = encoded
         lastPublishedAtMs = SystemClock.elapsedRealtime()
         session.publish(encoded, reading)
+        pipelineProbe.published(lastPublishedAtMs)
         publishedFps.mark(SystemClock.elapsedRealtime())
         markFirstPublishedFrame()
         watchdogRestarts = 0 // Dados da bateria nos headers, nunca gravados nos pixels.
@@ -816,6 +833,8 @@ class PhoneCameraBackgroundService : Service() {
 
     private fun stopCaptureAndFinish() {
         if (closing) return
+        freezeObserver?.stop()
+        freezeObserver = null
         closing = true
         releasing = true
         starting = false

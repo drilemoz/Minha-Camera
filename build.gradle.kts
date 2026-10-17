@@ -14,7 +14,7 @@ dependencies {
 val protocolClasses = layout.buildDirectory.dir("protocol-tests/classes")
 val protocolSources = files(
     fileTree("tests") { include("**/*.kt") },
-    listOf("NetUtil", "OnvifClient", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneVersionNotice", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneBackgroundRecovery", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
+    listOf("NetUtil", "OnvifClient", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneVersionNotice", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneBackgroundRecovery", "PhonePipelineTelemetry", "RemoteTransferProgress", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
         "app/src/main/java/com/minhacamera/$it.kt"
     }
 )
@@ -68,3 +68,11 @@ tasks.register<JavaExec>("testBackgroundRecovery") {
     mainClass.set("com.minhacamera.PhoneBackgroundRecoverySmokeKt")
 }
 tasks.named("testProtocol") { dependsOn("testBackgroundRecovery") }
+
+// Captura determinística das etapas do pipeline e progresso remoto.
+tasks.register<JavaExec>("testPipelineInvestigation") {
+    dependsOn(compileProtocolTests)
+    classpath = files(protocolClasses) + protocolRuntime
+    mainClass.set("com.minhacamera.PhonePipelineTelemetrySmokeKt")
+}
+tasks.named("testProtocol") { dependsOn("testPipelineInvestigation") }

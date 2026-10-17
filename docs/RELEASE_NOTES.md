@@ -1,3 +1,9 @@
+# Minha Câmera 1.4.73 (versionCode 83)
+- Investigação de congelamentos em Activity e serviço com tela apagada, sem capturar imagens nem credenciais.
+- Progresso de download remoto e cancelamento com remoção de arquivo incompleto.
+- CI corrigido para não interromper no falso zero-testes da release anterior.
+- Build Android e teste físico ainda pendentes.
+
 # Minha Câmera 1.4.72 (versionCode 82)
 
 - Cabeçalho do receptor com nome, seletor MJPEG/H.264 e diagnóstico na barra superior; selecionador embutido, sem popup.

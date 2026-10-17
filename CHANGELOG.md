@@ -1,3 +1,9 @@
+## 1.4.73+83
+- Corrigido CI: teste 1.4.72 agora é executado pelo unittest em vez de reportar zero testes.
+- Modo Investigação na tela de diagnóstico com rastreamento por estágio e snapshots de memória/threads em congelamentos de MJPEG nos dois modos.
+- Biblioteca remota: progresso em bytes, percentual, cancelamento e limpeza de arquivo parcial.
+- Build Android e avaliação física de travamento pendentes.
+
 ## 1.4.72+82 — 2026-10-17
 
 - Codec MJPEG/H.264 e ícone de diagnóstico realmente na ActionBar fixa do receptor, lado a lado com o nome; submenu embutido leva a rolagem para o início.

@@ -23,7 +23,8 @@ class CameraReportDialog(
     heading: String,
     initialText: String,
     private val export: (String) -> Unit,
-    private val subtitle: String = "Diagnóstico local • sem senhas ou tokens"
+    private val subtitle: String = "Diagnóstico local • sem senhas ou tokens",
+    private val toggleInvestigation: (() -> Unit)? = null
 ) {
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density + 0.5f).toInt()
     private val body = TextView(activity).apply {
@@ -107,6 +108,19 @@ class CameraReportDialog(
         }
         action("Exportar", primary = false) { export(body.text.toString()) }
         container.addView(actions)
+        if (toggleInvestigation != null) {
+            val investigation = MaterialButton(activity).apply {
+                isAllCaps = false
+                text = if (PhoneStreamDiagnostics.investigationEnabled(activity))
+                    "Investigação aprofundada: ligada" else "Investigação aprofundada: desligada"
+                setOnClickListener {
+                    toggleInvestigation.invoke()
+                    text = if (PhoneStreamDiagnostics.investigationEnabled(activity))
+                        "Investigação aprofundada: ligada" else "Investigação aprofundada: desligada"
+                }
+            }
+            container.addView(investigation, LinearLayout.LayoutParams(-1, dp(48)))
+        }
     }
 
     fun show(): CameraReportDialog {

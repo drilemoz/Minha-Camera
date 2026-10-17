@@ -52,6 +52,10 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import android.widget.ProgressBar
 
 /** Biblioteca MCRP do outro celular: consulta, reprodução e download; nunca apaga arquivos. */
 class RemoteMultimediaActivity : AppCompatActivity() {
@@ -59,6 +63,10 @@ class RemoteMultimediaActivity : AppCompatActivity() {
     private lateinit var list: LinearLayout
     private lateinit var info: TextView
     private var busy = false
+    private val activeDownload = AtomicBoolean(false)
+    private var cancelDownload: AtomicBoolean? = null
+    private var activeConnection: AtomicReference<HttpURLConnection?>? = null
+
     private var lastVersionNoticeKey: String? = null
     private data class MediaResponse(val items: org.json.JSONArray, val version: String?)
     private var requestSerial = 0
@@ -263,6 +271,8 @@ class RemoteMultimediaActivity : AppCompatActivity() {
     override fun onPause() { scanner?.pause(); super.onPause() }
     override fun onResume() { super.onResume(); if (scannerDialog?.isShowing == true) scanner?.resume() }
     override fun onDestroy() {
+        cancelDownload?.set(true)
+        activeConnection?.get()?.disconnect()
         requestSerial++
         scannerDialog?.dismiss()
         scannerDialog = null
@@ -482,7 +492,7 @@ class RemoteMultimediaActivity : AppCompatActivity() {
                             "$typeLabel • ${size / 1024} KB",
                             fileUrl, mime, size,
                             { openItem(fileUrl, mime, size) },
-                            { download(fileUrl, name, mime) }
+                            { download(fileUrl, name, mime, size) }
                         ))
                     }
                     if (items.length() == 0) {
@@ -558,14 +568,48 @@ class RemoteMultimediaActivity : AppCompatActivity() {
         }, "mcrp-photo").start()
     }
 
-    private fun download(url: String, name: String, mime: String) {
-        Toast.makeText(this, "Baixando para este celular…", Toast.LENGTH_SHORT).show()
+    /** Progresso de bytes efetivamente copiados. Uma transferência por vez; sem cache de vídeo em RAM. */
+    private fun download(url: String, name: String, mime: String, expectedSize: Long) {
+        if (!activeDownload.compareAndSet(false, true)) {
+            Toast.makeText(this, "Já existe um download em andamento", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val canceled = AtomicBoolean(false)
+        val connectionRef = AtomicReference<HttpURLConnection?>(null)
+        cancelDownload = canceled
+        activeConnection = connectionRef
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(14), dp(20), dp(8))
+        }
+        val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            isIndeterminate = true
+        }
+        val label = TextView(this).apply {
+            text = "Preparando transferência…"
+            setTextColor(getColor(R.color.app_text))
+            textSize = 14f
+            setPadding(0, dp(10), 0, dp(7))
+        }
+        content.addView(progress, LinearLayout.LayoutParams(-1, dp(8)))
+        content.addView(label)
+        val dialog = AlertDialog.Builder(this).setTitle("Baixando mídia remota")
+            .setMessage(name.take(80)).setView(content)
+            .setNegativeButton("Cancelar") { _, _ ->
+                canceled.set(true)
+                connectionRef.get()?.disconnect()
+            }.create()
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.show()
         Thread({
+            var legacyFile: File? = null
+            var uri: Uri? = null
             val saved = runCatching {
                 NetUtil.bindToWifi(applicationContext)
                 val safeName = name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(90)
-                var legacyFile: File? = null
-                val uri = if (Build.VERSION.SDK_INT >= 29) {
+                    .ifBlank { "midia_remota" }
+                uri = if (Build.VERSION.SDK_INT >= 29) {
                     val values = ContentValues().apply {
                         put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
                         put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -586,27 +630,85 @@ class RemoteMultimediaActivity : AppCompatActivity() {
                     legacyFile = file
                     FileProvider.getUriForFile(this, "$packageName.recordings", file)
                 }
+                val target = requireNotNull(uri)
+                val conn = URL(url).openConnection() as HttpURLConnection
+                connectionRef.set(conn)
                 try {
-                    val conn = URL(url).openConnection() as HttpURLConnection
-                    try {
-                        conn.connectTimeout = 5000; conn.readTimeout = 12000
-                        require(conn.responseCode == 200) { "HTTP ${conn.responseCode}" }
-                        contentResolver.openOutputStream(uri, "w")!!.use { out -> conn.inputStream.use { it.copyTo(out) } }
-                    } finally { conn.disconnect() }
-                    if (Build.VERSION.SDK_INT >= 29) {
-                        contentResolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 12000
+                    conn.instanceFollowRedirects = false
+                    require(conn.responseCode == 200) { "HTTP ${conn.responseCode}" }
+                    val announcedBytes = conn.contentLengthLong
+                    val total = announcedBytes.takeIf { it > 0 } ?: expectedSize.takeIf { it > 0 } ?: -1
+                    var copied = 0L
+                    var lastRefresh = 0L
+                    contentResolver.openOutputStream(target, "w")?.use { output ->
+                        conn.inputStream.use { input ->
+                            val buffer = ByteArray(32 * 1024)
+                            while (true) {
+                                if (canceled.get()) throw IOException("Transferência cancelada")
+                                val n = input.read(buffer)
+                                if (n < 0) break
+                                output.write(buffer, 0, n)
+                                copied += n
+                                val now = android.os.SystemClock.elapsedRealtime()
+                                if (now - lastRefresh >= 250L) {
+                                    lastRefresh = now
+                                    val value = RemoteTransferProgress.percent(copied, total)
+                                    val display = RemoteTransferProgress.label(copied, total)
+                                    runOnUiThread {
+                                        if (!isDestroyed && !isFinishing && !canceled.get()) {
+                                            progress.isIndeterminate = value == null
+                                            if (value != null) progress.progress = value * 10
+                                            label.text = display
+                                        }
+                                    }
+                                }
+                            }
+                            output.flush()
+                        }
+                    } ?: error("Não foi possível salvar o arquivo")
+                    if (canceled.get()) throw IOException("Transferência cancelada")
+                    if (announcedBytes > 0 && copied != announcedBytes)
+                        throw IOException("Arquivo incompleto")
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) {
+                            progress.isIndeterminate = false
+                            progress.progress = 1000
+                            label.text = RemoteTransferProgress.label(copied, copied)
+                        }
                     }
-                    legacyFile?.let { file -> android.media.MediaScannerConnection.scanFile(this,
-                        arrayOf(file.absolutePath), arrayOf(mime), null) }
-                    legacyFile?.absolutePath ?: uri.toString()
-                } catch (e: Exception) {
-                    if (Build.VERSION.SDK_INT >= 29) runCatching { contentResolver.delete(uri, null, null) }
-                    throw e
+                } finally {
+                    connectionRef.set(null)
+                    conn.disconnect()
                 }
+                if (Build.VERSION.SDK_INT >= 29) {
+                    contentResolver.update(target, ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    }, null, null)
+                }
+                legacyFile?.let { file -> android.media.MediaScannerConnection.scanFile(this,
+                    arrayOf(file.absolutePath), arrayOf(mime), null) }
+                true
             }
+            if (saved.isFailure) {
+                uri?.let { target -> if (Build.VERSION.SDK_INT >= 29)
+                    runCatching { contentResolver.delete(target, null, null) } }
+                legacyFile?.delete()
+            }
+            activeDownload.set(false)
+            cancelDownload = null
+            activeConnection = null
             runOnUiThread {
-                saved.onSuccess { Toast.makeText(this, "Salvo na galeria MinhaCamera", Toast.LENGTH_LONG).show() }
-                    .onFailure { Toast.makeText(this, "Falha ao baixar: ${it.message}", Toast.LENGTH_LONG).show() }
+                if (!isFinishing && !isDestroyed) {
+                    dialog.dismiss()
+                    val message = when {
+                        saved.isSuccess -> "Arquivo salvo na galeria MinhaCamera"
+                        canceled.get() -> "Download cancelado; arquivo parcial removido"
+                        else -> "Falha ao baixar: ${saved.exceptionOrNull()?.javaClass?.simpleName}"
+                    }
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                }
             }
         }, "mcrp-download").start()
     }

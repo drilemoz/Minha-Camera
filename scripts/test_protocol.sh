@@ -26,11 +26,14 @@ kotlinc \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneEcoPolicy.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneAvcAnnexB.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneOrientationMode.kt" \
+  "$ROOT/app/src/main/java/com/minhacamera/PhonePipelineTelemetry.kt" \
+  "$ROOT/app/src/main/java/com/minhacamera/RemoteTransferProgress.kt" \
   "$ROOT/tests/PhoneOrientationSmoke.kt" \
   "$ROOT/tests/PhoneAvcAnnexBSmoke.kt" \
   "$ROOT/tests/ProtocolSmoke.kt" \
   "$ROOT/tests/PhoneEcoPolicySmoke.kt" \
   "$ROOT/tests/PhoneVersionNoticeSmoke.kt" \
+  "$ROOT/tests/PhonePipelineTelemetrySmoke.kt" \
   -include-runtime -d "$BUILD/tests.jar"
 java -cp "$BUILD/tests.jar" com.minhacamera.ProtocolSmokeKt
 kotlinc "$ROOT/app/src/main/java/com/minhacamera/RtspPlaybackPolicy.kt" \
@@ -80,3 +83,6 @@ java -cp "$BUILD/tests.jar" com.minhacamera.PhoneVersionNoticeSmokeKt
 kotlinc "$ROOT/app/src/main/java/com/minhacamera/PhoneBackgroundRecovery.kt" \
   "$ROOT/tests/PhoneBackgroundRecoverySmoke.kt" -include-runtime -d "$BUILD/background-recovery.jar"
 java -jar "$BUILD/background-recovery.jar"
+
+# Telemetria e progresso sem hardware real.
+java -cp "$BUILD/tests.jar" com.minhacamera.PhonePipelineTelemetrySmokeKt
