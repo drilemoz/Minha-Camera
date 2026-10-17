@@ -36,6 +36,10 @@ object PhoneCameraUrls {
     fun codecCommandUrl(input: String, codec: String): String? =
         if (codec == "h264" || codec == "mjpeg") controlUrl(input, "codec/$codec") else null
 
+    /** Lanternas: OFF, temporizada 30/120s ou acesa somente durante REC. */
+    fun torchCommandUrl(input: String, mode: String): String? =
+        if (mode in setOf("off", "30", "120", "record")) controlUrl(input, "torch/$mode") else null
+
     fun statusUrl(input: String): String? = controlUrl(input, "status")
 
     fun diagnosticUrl(input: String): String? = controlUrl(input, "diagnostic")

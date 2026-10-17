@@ -129,6 +129,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
     @Volatile private var renderedPreviewFrames = false
     @Volatile private var publishedStreamFrame = false
     private var camera: Camera? = null
+    private val torch by lazy { PhoneTorchController(uiHandler, { recordingRequested }, { heatState }) }
     @Volatile private var server: PhoneCameraServer? = null
     private var selectedFacing = Camera.CameraInfo.CAMERA_FACING_BACK
     private var selectedId: Int? = null
@@ -824,6 +825,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
             if (params.supportedFocusModes?.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO) == true)
                 params.focusMode = Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO
             c.parameters = params
+            torch.attach(c, selectedFacing == Camera.CameraInfo.CAMERA_FACING_BACK && !dualMode)
             zoomAvailable = params.isZoomSupported && params.maxZoom > 0
             maxZoomRatio100 = if (zoomAvailable) params.zoomRatios?.lastOrNull()?.coerceAtLeast(100) ?: 100 else 100
             zoomPercent = 0
@@ -858,6 +860,10 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
                         true
                     }
                 },
+                changeTorch = { torch.setMode(it) },
+                torchSupported = { torch.supported },
+                torchEnabled = { torch.enabled },
+                torchMode = { torch.mode },
                 changeEco = { desired ->
                     if (!visible) false else {
                         ecoEnabled = desired
@@ -976,9 +982,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
                 }
                 if (data != null && visible && server === session && data.size >= byteCount &&
                     !encoding.get() && SystemClock.elapsedRealtime() - lastCapture >=
-                        maxOf(1000L / fpsTarget.coerceAtLeast(1),
-                            if (!ecoEnabled && heatState == PhoneHeatState.NORMAL && fpsTarget > 10) 33L
-                            else PhoneEcoPolicy.intervalMs(ecoEnabled, heatState)) &&
+                        PhoneEcoPolicy.streamIntervalMs(fpsTarget, ecoEnabled, heatState) &&
                     encoding.compareAndSet(false, true)) {
                     lastCapture = SystemClock.elapsedRealtime()
                     pipelineProbe.accepted(lastCapture)
@@ -1116,7 +1120,10 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
             previousBatteryReading = battery
             cachedTelemetryLabel = battery.overlayLabel()
             val newHeat = PhoneEcoPolicy.heatState(battery.temperatureTenthsC, heatState)
-            heatState = newHeat
+            if (heatState != newHeat) {
+                heatState = newHeat
+                torch.onStateChanged()
+            }
             val heatText = if (newHeat == PhoneHeatState.NORMAL) "" else {
                 val temp = battery.temperatureTenthsC?.let {
                     String.format(Locale.forLanguageTag("pt-BR"), "%.1f", it / 10.0)
@@ -1231,6 +1238,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
         }
         if (recordingRequested) {
             recordingRequested = false
+            torch.onStateChanged()
             showRecordState(false)
             recordWorker.execute { finishRecording() }
             if (visible && !backgroundMode) updateOrientation()
@@ -1245,6 +1253,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
                 return
             }
             recordingRequested = true
+            torch.onStateChanged()
             status.setText(R.string.phone_record_preparing)
             showRecordState(true)
         }
@@ -1671,6 +1680,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
         server = null
         sessionStartMs = 0L
         previous?.stop()
+        torch.detach()
         val c = camera
         camera = null
         selectedId = null

@@ -21,7 +21,7 @@ class H264AndDiagnosticsTests(unittest.TestCase):
         encoder=(SRC/'PhoneH264LiveEncoder.kt').read_text()
         service=(SRC/'PhoneCameraBackgroundService.kt').read_text()
         self.assertIn('MediaCodec.createByCodecName',encoder)
-        self.assertIn('it.isHardwareAccelerated',encoder)
+        self.assertIn('codecInfo.isHardwareAccelerated',encoder)
         self.assertIn('PhoneYuv420.convert',encoder)
         self.assertIn('liveCodec = "mjpeg"',service)
         self.assertIn('PhoneStreamDiagnostics.add(',service)

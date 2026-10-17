@@ -23,6 +23,17 @@ internal object PhoneEcoPolicy {
         else -> 90L
     }
 
+    /** Intervalo mínimo de transmissão: NORMAL respeita FPS pedido sem teto fixo de 11 FPS.
+     *  WARM reduz a carga; HOT e Eco permanecem protegidos. Não garante FPS real.
+     */
+    fun streamIntervalMs(targetFps: Int, ecoEnabled: Boolean, state: PhoneHeatState): Long =
+        maxOf(1000L / targetFps.coerceIn(1, 30), when {
+            state == PhoneHeatState.HOT -> 300L
+            ecoEnabled -> 200L
+            state == PhoneHeatState.WARM -> 66L
+            else -> 0L
+        })
+
     fun jpegQuality(ecoEnabled: Boolean, state: PhoneHeatState): Int = when {
         state == PhoneHeatState.HOT -> 45
         ecoEnabled -> 50

@@ -1,3 +1,10 @@
+# Minha Câmera 1.4.74 (versionCode 84)
+- MJPEG com tela apagada deixa de impor 11 FPS quando solicitado 15/24/30 FPS em modo normal.
+- Controle remoto da lanterna traseira: OFF, 30s, 120s ou acompanhar REC, com confirmação e leitura de estado.
+- Proteção por temperatura de bateria e liberação da câmera, sem nova permissão.
+- H.264 relata por que um encoder foi rejeitado; não há promessa de compatibilidade.
+- Build APK/assinatura e validação em dois celulares ainda necessários.
+
 # Minha Câmera 1.4.73 (versionCode 83)
 - Investigação de congelamentos em Activity e serviço com tela apagada, sem capturar imagens nem credenciais.
 - Progresso de download remoto e cancelamento com remoção de arquivo incompleto.

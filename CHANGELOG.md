@@ -1,3 +1,10 @@
+## 1.4.74+84 — 2026-10-17
+- Removido o limitador normal de 90 ms entre quadros na captura MJPEG com tela apagada; agora o intervalo considera a meta 5/10/15/24/30 FPS, modo Eco e estado térmico.
+- Em modo normal admite teto solicitado de até 30 FPS, mas **não garante** FPS efetivos; modo Eco preserva 200 ms, bateria quente preserva 300 ms e estado morno limita aproximadamente 15 FPS.
+- Controle remoto autenticado de lanterna traseira usando Camera.Parameters.FLASH_MODE_TORCH da mesma câmera aberta, sem segundo acesso; comandos: OFF, 30 s, 120 s, e durante REC. Verifica suporte por lente, informa estado real e desliga ao liberar câmera; desativa se a temperatura da bateria atingir estado HOT.
+- Para H.264 registra rejeições de codificadores por aceleração, formato de entrada, tamanho/FPS e erro de configuração; o decoder e compatibilidade continuam experimentais.
+- Preservados HTTP/MCRP v1, URI/token da sessão, zoom, gravação opcional, biblioteca remota, assinatura estável e ABIs originais. Build Android e teste físico no Redmi A3 pendentes.
+
 ## 1.4.73+83
 - Corrigido CI: teste 1.4.72 agora é executado pelo unittest em vez de reportar zero testes.
 - Modo Investigação na tela de diagnóstico com rastreamento por estágio e snapshots de memória/threads em congelamentos de MJPEG nos dois modos.

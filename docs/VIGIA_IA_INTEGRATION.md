@@ -185,3 +185,9 @@ Distinguir serviço **iniciando**, **publicando primeiro quadro** e **liberando 
 ## Aprendizado 1.4.72 — serviço câmera com tela apagada
 
 Diagnóstico real Redmi A3: serviço MJPEG completou 253 frames de superfície, sem erros EGL, depois deixou de capturar/publicar; watchdog detectou 8–14 s sem quadros. Um outro ciclo abriu Camera.open/startPreview e publicou quadro em <2 s, mas encoder H.264 falhou com IllegalStateException. São falhas distintas. Estratégia defensiva: registrar separadamente último callback, último quadro publicado e saúde EGL; recuperar só após stall e com perfil progressivamente mais leve; não insistir no encoder incompatível na mesma sessão. Validar no hardware antes de transportar a solução para Vigia IA.
+
+## Aprendizado Minha Câmera 1.4.74+84 (2026-10-17)
+- FPS solicitado e efetivo devem ser distinguidos. O serviço MJPEG tinha limite de 90 ms (aprox. 11 FPS) mesmo quando 30 FPS eram solicitados; corrigido com política de limite dependente de FPS/meta/temperatura/Eco.
+- Controle remoto de `FLASH_MODE_TORCH` exige câmera traseira aberta, modo anunciado pelo driver e desligamento por encerramento/troca de lente/temperatura; durante gravação, acompanhar o estado real REC.
+- Não usar `CameraManager.setTorchMode` quando uma instância Camera1 já possui a câmera: utilizar os parâmetros da própria Camera. Testar fisicamente o comportamento de firmware e bateria antes de migrar.
+- Rejeições dos encoders AVC precisam registrar formato/capacidades/resolução/FPS e etapa de configuração sem revelar dados sensíveis; H.264 continua experimental.

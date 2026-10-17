@@ -24,12 +24,19 @@ internal class PhoneH264LiveEncoder(
 
     init {
         require(width % 2 == 0 && height % 2 == 0)
+        val rejected = mutableListOf<String>()
         val candidates = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.asSequence()
             .filter { it.isEncoder && it.supportedTypes.any { type -> type.equals(MediaFormat.MIMETYPE_VIDEO_AVC, true) } }
-            .filter { Build.VERSION.SDK_INT < 29 || it.isHardwareAccelerated }
             .mapNotNull { codecInfo ->
+                if (Build.VERSION.SDK_INT >= 29 && !codecInfo.isHardwareAccelerated) {
+                    rejected.add("${codecInfo.name.take(45)}: sem aceleração HW")
+                    return@mapNotNull null
+                }
                 val caps = runCatching { codecInfo.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC) }.getOrNull()
-                    ?: return@mapNotNull null
+                if (caps == null) {
+                    rejected.add("${codecInfo.name.take(45)}: capabilities ausentes")
+                    return@mapNotNull null
+                }
                 val color = when {
                     // Em alguns drivers, SemiPlanar anuncia NV12 mas trata cromas de forma
                     // incompatível; priorizar I420 explícito quando disponível.
@@ -37,9 +44,15 @@ internal class PhoneH264LiveEncoder(
                         MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
                     caps.colorFormats.contains(MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar) ->
                         MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
-                    else -> return@mapNotNull null
+                    else -> {
+                        rejected.add("${codecInfo.name.take(45)}: sem YUV420 planar/semiplanar")
+                        return@mapNotNull null
+                    }
                 }
-                if (!caps.videoCapabilities.areSizeAndRateSupported(width, height, fps.toDouble())) return@mapNotNull null
+                if (!runCatching { caps.videoCapabilities.areSizeAndRateSupported(width, height, fps.toDouble()) }.getOrDefault(false)) {
+                    rejected.add("${codecInfo.name.take(45)}: ${width}x$height@$fps indisponível")
+                    return@mapNotNull null
+                }
                 codecInfo.name to color
             }.toList()
         var encoder: MediaCodec? = null
@@ -60,10 +73,20 @@ internal class PhoneH264LiveEncoder(
                     encoder = candidate
                     selected = color
                     break
-                } catch (e: Exception) { candidate.release() }
-            } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    rejected.add("${name.take(45)}: configuração ${e.javaClass.simpleName} ${e.message?.take(35).orEmpty()}")
+                    runCatching { candidate.release() }
+                }
+            } catch (e: Exception) {
+                rejected.add("${name.take(45)}: criação ${e.javaClass.simpleName}")
+            }
         }
-        codec = encoder ?: throw IllegalStateException("Nenhum encoder AVC YUV420 acelerado disponível")
+        if (encoder == null) {
+            val report = rejected.take(8).joinToString("; ").take(480).ifBlank { "nenhum AVC anunciado" }
+            PhoneStreamDiagnostics.add("H264 sem encoder: $report")
+            throw IllegalStateException("Nenhum encoder AVC YUV420 acelerado: $report")
+        }
+        codec = encoder
         planar = selected == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
     }
 

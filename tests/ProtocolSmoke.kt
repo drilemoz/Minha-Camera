@@ -458,6 +458,9 @@ private fun checkRemoteRecordingApi() {
     check(PhoneCameraUrls.photoCommandUrl(privateUrl) ==
         "http://192.168.12.2:8765/control/$token/photo")
     check(PhoneCameraUrls.qualityCommandUrl(privateUrl, 1080) != null)
+    check(PhoneCameraUrls.torchCommandUrl(privateUrl, "30")?.endsWith("/control/$token/torch/30") == true)
+    check(PhoneCameraUrls.torchCommandUrl(privateUrl, "record")?.endsWith("/torch/record") == true)
+    check(PhoneCameraUrls.torchCommandUrl(privateUrl, "999") == null)
     check(PhoneCameraUrls.fpsCommandUrl(privateUrl, 100) == null)
     check(PhoneCameraUrls.zoomCommandUrl(privateUrl, 50) ==
         "http://192.168.12.2:8765/control/$token/zoom/50")
@@ -476,6 +479,8 @@ private fun checkRemoteRecordingApi() {
     var zoom = 0
     var photos = 0
     var codec = "mjpeg"
+    var torchMode = "off"
+    var torchAvailable = true
     val server = PhoneCameraServer(localhost, token,
         changeRecording = { wanted -> recording = wanted; true },
         recordingStatus = { recording },
@@ -487,6 +492,8 @@ private fun checkRemoteRecordingApi() {
         changeFacing = { facing = it; true }, facingStatus = { facing },
         takePhoto = { photos++; true }, recordingSeconds = { 3L },
         changeCodec = { codec = it; true }, codecStatus = { codec },
+        changeTorch = { torchMode = it; true }, torchSupported = { torchAvailable },
+        torchEnabled = { torchMode == "30" || torchMode == "120" }, torchMode = { torchMode },
         transmissionSeconds = { 42L }, diagnostics = { "Apenas teste local" })
     server.start()
     try {
@@ -516,6 +523,16 @@ private fun checkRemoteRecordingApi() {
         check(!eco)
         check(command("/control/$token/eco/enable", "GET") == 403)
         check(!eco)
+        check(command("/control/$token/torch/30") == 204 && torchMode == "30")
+        check(command("/control/$token/torch/120") == 204 && torchMode == "120")
+        check(command("/control/$token/torch/record") == 204 && torchMode == "record")
+        check(command("/control/${"0".repeat(32)}/torch/30") == 403 && torchMode == "record")
+        check(command("/control/$token/torch/off", "GET") == 403 && torchMode == "record")
+        check(command("/control/$token/torch/999") == 403 && torchMode == "record")
+        torchAvailable = false
+        check(command("/control/$token/torch/30") == 409 && torchMode == "record")
+        check(command("/control/$token/torch/off") == 204 && torchMode == "off")
+        torchAvailable = true
         check(command("/control/$token/quality/720") == 204 && quality == 720)
         check(command("/control/$token/fps/15") == 204 && fps == 15)
         check(command("/control/$token/camera/front") == 204 && facing == 1)
@@ -548,6 +565,9 @@ private fun checkRemoteRecordingApi() {
             check(status.responseCode == 200)
             check(status.getHeaderField("X-Stream-Codec") == "mjpeg")
             check(status.getHeaderField("X-Transmission-Seconds") == "42")
+            check(status.getHeaderField("X-Torch-Supported") == "1")
+            check(status.getHeaderField("X-Torch-Enabled") == "0")
+            check(status.getHeaderField("X-Torch-Mode") == "off")
             check(status.getHeaderField("X-Zoom-Supported") == "1")
             check(status.getHeaderField("X-Zoom-Percent") == "100")
             check(status.getHeaderField("X-Zoom-Ratio-100") == "300")

@@ -136,7 +136,9 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         val resolution: String? = null,
         val zoomPercent: Int? = null, val zoomRatio100: Int? = null,
         val zoomMaxRatio100: Int? = null, val measuredFps: Int? = null,
-        val appVersion: String? = null, val authenticated: Boolean = false)
+        val appVersion: String? = null, val authenticated: Boolean = false,
+        val torchSupported: Boolean? = null, val torchEnabled: Boolean? = null,
+        val torchMode: String? = null)
     private lateinit var batteryPill: TextView
     private lateinit var temperatureLabel: TextView
     private lateinit var resolutionLabel: TextView
@@ -148,6 +150,9 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
     private lateinit var remoteSection: View
     private var lastShownFps: Int? = null
     private var remoteEco: Boolean? = null
+    private var remoteTorchSupported: Boolean? = null
+    private var remoteTorchEnabled: Boolean? = null
+    private var remoteTorchMode: String? = null
     /** Correção manual local, sem recodificar os quadros transmitidos. */
     private var rotationDegrees = 0
     private var diagnosticToExport = ""
@@ -391,6 +396,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
             }
         }
         findViewById<View>(R.id.viewerRecordAction).setOnClickListener { setRemoteRecording(remoteRecording != true) }
+        findViewById<View>(R.id.viewerRemoteTorch).setOnClickListener { chooseRemoteTorch() }
         findViewById<View>(R.id.viewerRemoteEco).setOnClickListener {
             if (remoteEco == null) {
                 Toast.makeText(this, R.string.viewer_eco_unavailable, Toast.LENGTH_LONG).show()
@@ -416,6 +422,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         applyTelemetry(null)
         refreshRecordingUi()
         updateEcoUi()
+        updateTorchUi()
         refreshQuickControlStates()
     }
 
@@ -1050,7 +1057,8 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
                     if (bool("X-Zoom-Supported") == true) int("X-Zoom-Percent") else null,
                     if (bool("X-Zoom-Supported") == true) int("X-Zoom-Ratio-100") else null,
                     if (bool("X-Zoom-Supported") == true) int("X-Zoom-Max-Ratio-100") else null,
-                    int("X-FPS-Measured"), conn.getHeaderField("X-App-Version"), true)
+                    int("X-FPS-Measured"), conn.getHeaderField("X-App-Version"), true,
+                    bool("X-Torch-Supported"), bool("X-Torch-Enabled"), conn.getHeaderField("X-Torch-Mode"))
             } finally { conn.disconnect() }
         } catch (_: Exception) { RemoteStatus(null,null,null,null,null,null,null,null,null,null,null) }
     }
@@ -1073,6 +1081,10 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         }
         remoteRecording = state.recording ?: remoteRecording
         remoteEco = state.eco ?: remoteEco
+        remoteTorchSupported = state.torchSupported
+        remoteTorchEnabled = state.torchEnabled
+        remoteTorchMode = state.torchMode
+        updateTorchUi()
         remoteQuality = state.quality ?: remoteQuality
         remoteFps = state.fps ?: remoteFps
         // A câmera pode não oferecer zoom (modo H.264, dupla ou aparelho sem suporte).
@@ -1253,6 +1265,39 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
     private fun setRemoteEco(enabled: Boolean) {
         postRemote(PhoneCameraUrls.ecoCommandUrl(intent.getStringExtra("url").orEmpty(), enabled),
             R.string.viewer_eco_updated) { remoteEco = enabled; updateEcoUi() }
+    }
+
+    private fun chooseRemoteTorch() {
+        if (remoteTorchSupported != true) {
+            Toast.makeText(this, "Lanterna não disponível na câmera traseira atual", Toast.LENGTH_LONG).show()
+            return
+        }
+        val modes = arrayOf("off", "30", "120", "record")
+        val labels = arrayOf("Desligar", "Iluminar por 30 segundos", "Iluminar por 2 minutos",
+            "Acender somente durante a gravação")
+        PhoneViewerChoiceDialog.show(this, "Lanterna da câmera",
+            "O LED consome bateria e pode aquecer o aparelho. Desliga automaticamente ao finalizar a transmissão.",
+            labels, intArrayOf(R.drawable.ic_ui_light, R.drawable.ic_ui_light,
+                R.drawable.ic_ui_light, R.drawable.ic_ui_record), modes.indexOf(remoteTorchMode).coerceAtLeast(0)) { index ->
+            val desired = modes[index]
+            postRemote(PhoneCameraUrls.torchCommandUrl(intent.getStringExtra("url").orEmpty(), desired),
+                R.string.viewer_torch_updated) {
+                remoteTorchMode = desired
+                remoteTorchEnabled = desired != "off" && (desired != "record" || remoteRecording == true)
+                updateTorchUi()
+            }
+        }
+    }
+
+    private fun updateTorchUi() {
+        val value = findViewById<TextView>(R.id.viewerRemoteTorchValue)
+        value.text = when {
+            remoteTorchSupported != true -> "Indisp."
+            remoteTorchEnabled == true -> "Acesa"
+            remoteTorchMode == "record" -> "REC"
+            else -> "Apagada"
+        }
+        findViewById<View>(R.id.viewerRemoteTorch).alpha = if (remoteTorchSupported == true) 1f else .55f
     }
 
     private fun updateEcoUi() {

@@ -43,6 +43,10 @@ class PhoneCameraServer(
     private val resolutionStatus: (() -> String)? = null,
     private val mediaIndex: (() -> String)? = null,
     private val mediaOpen: ((String) -> McrpMediaStream?)? = null,
+    private val changeTorch: ((String) -> Boolean)? = null,
+    private val torchSupported: (() -> Boolean)? = null,
+    private val torchEnabled: (() -> Boolean)? = null,
+    private val torchMode: (() -> String)? = null,
     private val appVersion: (() -> String)? = null
 ) {
     init { require(token.matches(Regex("[0-9a-f]{32}"))) }
@@ -146,7 +150,7 @@ class PhoneCameraServer(
                 val model = (deviceModel?.invoke() ?: "Android").replace(Regex("[^A-Za-z0-9 ._-]"), "").take(50)
                 val body = ("{\"protocol\":\"mcrp\",\"version\":1,\"app_version\":\"${safeAppVersion()}\",\"device\":{\"model\":\"$model\"}," +
                     "\"stream\":{\"codec\":\"${if (codecStatus?.invoke() == "h264") "h264" else "mjpeg"}\",\"mjpeg\":\"$wanted\",\"h264\":\"${wanted.replace("/live/", "/h264/")}\"}," +
-                    "\"capabilities\":{\"record\":${changeRecording != null},\"photo\":${takePhoto != null},\"eco\":${changeEco != null},\"facing\":${changeFacing != null},\"quality\":${changeQuality != null},\"fps\":${changeFps != null},\"zoom\":${changeZoom != null && zoomStatus?.invoke() != null},\"codec\":${changeCodec != null},\"media\":${mediaIndex != null}}}")
+                    "\"capabilities\":{\"record\":${changeRecording != null},\"photo\":${takePhoto != null},\"eco\":${changeEco != null},\"facing\":${changeFacing != null},\"quality\":${changeQuality != null},\"fps\":${changeFps != null},\"zoom\":${changeZoom != null && zoomStatus?.invoke() != null},\"codec\":${changeCodec != null},\"torch\":${changeTorch != null && torchSupported?.invoke() == true},\"media\":${mediaIndex != null}}}")
                 writeJson(peer, body)
                 return
             }
@@ -195,6 +199,18 @@ class PhoneCameraServer(
                 "POST $control/codec/h264 HTTP/1.1" -> "h264"
                 else -> null
             }
+            val torchAction = listOf("off", "30", "120", "record").firstOrNull {
+                line == "POST $control/torch/$it HTTP/1.1"
+            }
+            if (torchAction != null) {
+                val allowed = torchAction == "off" || torchSupported?.invoke() == true
+                val success = allowed && (try { changeTorch?.invoke(torchAction) == true } catch (_: Exception) { false })
+                val reason = if (success) "" else if (changeTorch == null || !allowed) "unsupported-mode" else "command-rejected"
+                peer.getOutputStream().write(("HTTP/1.1 ${if (success) "204 No Content" else "409 Conflict"}\r\n" +
+                    "Cache-Control: no-store\r\nX-Control-Reason: $reason\r\n" +
+                    "Connection: close\r\nContent-Length: 0\r\n\r\n").toByteArray(Charsets.US_ASCII))
+                return
+            }
             if (codecAction != null) {
                 val success = try { changeCodec?.invoke(codecAction) == true } catch (_: Exception) { false }
                 peer.getOutputStream().write(("HTTP/1.1 ${if (success) "204 No Content" else "409 Conflict"}\r\n" +
@@ -224,6 +240,9 @@ class PhoneCameraServer(
                     qualityStatus?.let { append("X-Quality-Profile: ${it()}\r\n") }
                     fpsStatus?.let { append("X-FPS-Target: ${it()}\r\n") }
                     measuredFpsStatus?.let { append("X-FPS-Measured: ${it()}\r\n") }
+                    append("X-Torch-Supported: ${if (changeTorch != null && torchSupported?.invoke() == true) 1 else 0}\r\n")
+                    append("X-Torch-Enabled: ${if (torchEnabled?.invoke() == true) 1 else 0}\r\n")
+                    append("X-Torch-Mode: ${torchMode?.invoke() ?: "off"}\r\n")
                     append("X-Zoom-Supported: ${if (changeZoom != null && zoomStatus?.invoke() != null) 1 else 0}\r\n")
                     zoomStatus?.let { it()?.let { percent -> append("X-Zoom-Percent: $percent\r\n") } }
                     zoomRatioStatus?.let { it()?.let { ratio -> append("X-Zoom-Ratio-100: $ratio\r\n") } }

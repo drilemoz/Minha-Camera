@@ -112,6 +112,7 @@ class PhoneCameraBackgroundService : Service() {
     private val recordWorker = Executors.newSingleThreadExecutor { r -> Thread(r, "phone-background-mp4") }
     private val encoding = AtomicBoolean(false)
     private val recordingBusy = AtomicBoolean(false)
+    private val torch by lazy { PhoneTorchController(mainHandler, { recording }, { heatState }) }
     private val battery by lazy { PhoneBatteryTelemetry(applicationContext) }
     @Volatile private var zoomAvailable = false
     @Volatile private var zoomPercent = 0
@@ -442,6 +443,10 @@ class PhoneCameraBackgroundService : Service() {
                     if (!closing && recording != desired) toggleRecording()
                 }; true }
             }, recordingStatus = { recording },
+            changeTorch = { torch.setMode(it) },
+            torchSupported = { torch.supported },
+            torchEnabled = { torch.enabled },
+            torchMode = { torch.mode },
             changeCodec = { desired -> changeStreamCodec(desired) },
             codecStatus = { liveCodec },
             transmissionSeconds = { if (running && transmissionStartedMs > 0L)
@@ -525,6 +530,7 @@ class PhoneCameraBackgroundService : Service() {
     }
 
     private fun releasePreview() {
+        torch.detach()
         val old = camera
         camera = null
         zoomAvailable = false
@@ -596,6 +602,7 @@ class PhoneCameraBackgroundService : Service() {
         if (params.supportedFocusModes?.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO) == true)
             params.focusMode = Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO
         opened.parameters = params
+        torch.attach(opened, facing == Camera.CameraInfo.CAMERA_FACING_BACK)
         zoomAvailable = params.isZoomSupported && params.maxZoom > 0
         maxZoomRatio100 = if (zoomAvailable) params.zoomRatios?.lastOrNull()?.coerceAtLeast(100) ?: 100 else 100
         zoomPercent = 0
@@ -618,9 +625,8 @@ class PhoneCameraBackgroundService : Service() {
                 pipelineProbe.callback(lastCaptureAtMs) }
             if (bytes != null && server === session && !closing && !switching &&
                 bytes.size >= byteCount &&
-                SystemClock.elapsedRealtime() - lastCapture >= maxOf(1000L / fpsLimit.coerceAtLeast(1),
-                    if (liveCodec == "h264" && !ecoEnabled && heatState == PhoneHeatState.NORMAL) 33L
-                    else PhoneEcoPolicy.intervalMs(ecoEnabled, heatState)) &&
+                SystemClock.elapsedRealtime() - lastCapture >=
+                    PhoneEcoPolicy.streamIntervalMs(fpsLimit, ecoEnabled, heatState) &&
                 encoding.compareAndSet(false, true)) {
                 lastCapture = SystemClock.elapsedRealtime()
                 pipelineProbe.accepted(lastCapture)
@@ -725,7 +731,11 @@ class PhoneCameraBackgroundService : Service() {
         // Relata a geometria PUBLICADA (não a dimensão bruta do sensor).
         remoteResolution = "${width}x${height}"
         session.updateBattery(reading)
-        heatState = PhoneEcoPolicy.heatState(reading.temperatureTenthsC, heatState)
+        val newHeat = PhoneEcoPolicy.heatState(reading.temperatureTenthsC, heatState)
+        if (heatState != newHeat) {
+            heatState = newHeat
+            torch.onStateChanged()
+        }
         if (liveCodec == "h264") {
             try {
                 if (liveEncoder == null) {
@@ -801,6 +811,7 @@ class PhoneCameraBackgroundService : Service() {
                         }
                     } catch (_: Exception) {
                         recording = false
+                        torch.onStateChanged()
                         try { recorder?.cancel() } catch (_: Exception) { }
                         recorder = null
                         lastError = getString(R.string.phone_record_failed)
@@ -814,6 +825,7 @@ class PhoneCameraBackgroundService : Service() {
     private fun toggleRecording() {
         PhoneStreamDiagnostics.add(if (recording) "Gravação encerrada" else "Gravação solicitada")
         recording = !recording
+        torch.onStateChanged()
         recordingStartMs = if (recording) SystemClock.elapsedRealtime() else 0L
         if (!recording) {
             recordWorker.execute { finishRecording() }
@@ -846,6 +858,7 @@ class PhoneCameraBackgroundService : Service() {
         running = false
         recording = false
         recordingStartMs = 0L
+        torch.detach()
         mainHandler.removeCallbacks(frameWatchdog)
         transmissionStartedMs = 0L
         PhoneStreamDiagnostics.add("Transmissão encerrada")
@@ -906,7 +919,7 @@ class PhoneCameraBackgroundService : Service() {
 
     private fun diagnosis(): String = PhoneStreamDiagnostics.report(
         "modo=${if (running) "ativo" else "parado"}, codec=$liveCodec, gravando=$recording, " +
-            "eco=$ecoEnabled, capturados=$frameCount, ultimoCallbackMs=${SystemClock.elapsedRealtime()-lastCaptureAtMs}, " +
+            "eco=$ecoEnabled, lanterna=${torch.mode}/${torch.enabled}, capturados=$frameCount, ultimoCallbackMs=${SystemClock.elapsedRealtime()-lastCaptureAtMs}, " +
             "ultimoCodificadoMs=${SystemClock.elapsedRealtime()-lastPublishedAtMs}, tentativas=$watchdogRestarts, " +
             "fase=$startupPhase, iniciando=$starting, liberando=$releasing, primeiroQuadro=$firstFramePublished, " +
             (headlessPreview?.health() ?: "surface=inativa")
