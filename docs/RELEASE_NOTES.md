@@ -1,3 +1,9 @@
+# Minha Câmera 1.4.76 (versionCode 86)
+- Build APK 73: corrigida `UnknownTaskException` no Gradle ao configurar `testProtocol` antes de registrá-la.
+- `testTorch` continua dependência de `testProtocol`, com compilação e stubs independentes.
+- Nova verificação automatizada para evitar futuros `tasks.named` prematuros.
+- FPS otimizado e lanterna remota preservados; compilação Android e testes físicos ainda não concluídos.
+
 # Minha Câmera 1.4.75 (versionCode 85)
 - Build APK 72: corrigida a etapa `compileProtocolTests` que incluía os stubs exclusivos do teste da lanterna; a suíte foi separada em `compileTorchTests`/`testTorch`.
 - `testProtocol` agora depende de `testTorch`, mantendo a verificação de comandos da lanterna no CI sem conflito de `SystemClock`.

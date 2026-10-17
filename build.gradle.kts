@@ -63,7 +63,6 @@ tasks.register<JavaExec>("testTorch") {
     classpath = files(torchClasses) + protocolRuntime
     mainClass.set("com.minhacamera.PhoneTorchControllerSmokeKt")
 }
-tasks.named("testProtocol") { dependsOn("testTorch") }
 
 // Executado também como dependência de testProtocol na CI: valida concorrência sem câmera física.
 tasks.register<JavaExec>("testBackgroundHandoff") {
@@ -76,6 +75,8 @@ tasks.register<JavaExec>("testProtocol") {
     classpath = files(protocolClasses) + protocolRuntime
     mainClass.set("com.minhacamera.ProtocolSmokeKt")
 }
+// O provider precisa existir antes de tasks.named; regressão Build APK 73.
+tasks.named("testProtocol") { dependsOn("testTorch") }
 tasks.named("testProtocol") { dependsOn("testBackgroundHandoff") }
 
 

@@ -1,3 +1,8 @@
+## 1.4.76+86 — 2026-10-17
+- Corrigido Build APK 73: erro de avaliação do Gradle (`UnknownTaskException: Task with name 'testProtocol' not found`) porque `tasks.named("testProtocol")` era chamado antes de `tasks.register<JavaExec>("testProtocol")`.
+- Reordenada a configuração da dependência de `testTorch` para após o registro de `testProtocol`. Novo teste de regressão verifica a ordem de declaração das tarefas nomeadas; executado no preflight do GitHub Actions.
+- Sem mudanças de comportamento no FPS, controle remoto da lanterna, codec ou assinatura. O Build Android completo segue pendente de CI.
+
 ## 1.4.75+85 — 2026-10-17
 - Corrigido Build APK 72: compilação `:compileProtocolTests` falhava por redeclaração de `android.os.SystemClock` entre stubs de protocolo e de lanterna, e por não incluir a classe `PhoneTorchController` exigida pelo novo smoke test.
 - Compilação e execução do teste da lanterna em tarefas Gradle separadas (`compileTorchTests`/`testTorch`), dependentes de `testProtocol`, com seleção explícita das fontes e isolamento entre stubs.

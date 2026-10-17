@@ -1,3 +1,5 @@
+**Novo em 1.4.76:** corrigido Build APK 73: registro de `testProtocol` ocorre antes de sua configuração via `tasks.named()`, evitando `UnknownTaskException` no Gradle. Adicionado teste de regressão à CI para conferir a ordem de todas as tarefas nomeadas. Preservados FPS, lanterna remota, H.264 experimental, autenticação e assinatura da 1.4.75. A compilação Android completa ainda precisa ser confirmada no GitHub Actions.
+
 **Novo em 1.4.75:** corrigido Build APK 72: os testes Gradle de controle da lanterna compilam em conjunto isolado, com seus próprios stubs de Android, eliminando redeclaração de `SystemClock` e referência não resolvida de `PhoneTorchController`. `testProtocol` executa também `testTorch`. Sem mudanças no streaming/FPS, lanterna, token remoto ou assinatura da 1.4.74. Build Android completo ainda precisa ser confirmado no GitHub Actions.
 
 **Novo em 1.4.74:** correção do teto artificial de ~11 FPS na captura MJPEG com a tela apagada; a meta 15/24/30 FPS fica liberada no modo normal, preservando economia e proteção térmica. O receptor adiciona comando autenticado da lanterna traseira (desligar, 30 s, 2 min ou somente durante gravação) para câmera com suporte real a `FLASH_MODE_TORCH`. Acesso pelo mesmo token, sem nuvem nem permissão extra. H.264 registra motivos de rejeição de encoders para diagnóstico. Não garante 30 FPS, iluminação em toda câmera ou estabilidade no Redmi A3 sem teste físico.
@@ -8,7 +10,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.75 (versionCode 85)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.76 (versionCode 86)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 
