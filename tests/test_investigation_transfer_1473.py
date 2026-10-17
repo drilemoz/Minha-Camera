@@ -24,6 +24,6 @@ class InvestigationTransfer1473(unittest.TestCase):
             self.assertIn(mark,s)
         self.assertIn('percent(bytes: Long, total: Long)',(SRC/'RemoteTransferProgress.kt').read_text())
     def test_versions(self):
-        self.assertIn('versionCode = 84',(ROOT/'app/build.gradle.kts').read_text())
-        self.assertIn('versionName = "1.4.74"',(ROOT/'app/build.gradle.kts').read_text())
+        self.assertIn('versionCode = 85',(ROOT/'app/build.gradle.kts').read_text())
+        self.assertIn('versionName = "1.4.75"',(ROOT/'app/build.gradle.kts').read_text())
 if __name__=='__main__': unittest.main()

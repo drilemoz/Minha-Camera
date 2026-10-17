@@ -1,3 +1,5 @@
+**Novo em 1.4.75:** corrigido Build APK 72: os testes Gradle de controle da lanterna compilam em conjunto isolado, com seus próprios stubs de Android, eliminando redeclaração de `SystemClock` e referência não resolvida de `PhoneTorchController`. `testProtocol` executa também `testTorch`. Sem mudanças no streaming/FPS, lanterna, token remoto ou assinatura da 1.4.74. Build Android completo ainda precisa ser confirmado no GitHub Actions.
+
 **Novo em 1.4.74:** correção do teto artificial de ~11 FPS na captura MJPEG com a tela apagada; a meta 15/24/30 FPS fica liberada no modo normal, preservando economia e proteção térmica. O receptor adiciona comando autenticado da lanterna traseira (desligar, 30 s, 2 min ou somente durante gravação) para câmera com suporte real a `FLASH_MODE_TORCH`. Acesso pelo mesmo token, sem nuvem nem permissão extra. H.264 registra motivos de rejeição de encoders para diagnóstico. Não garante 30 FPS, iluminação em toda câmera ou estabilidade no Redmi A3 sem teste físico.
 
 **Novo em 1.4.72:** na tela Assistir, os atalhos de codec e diagnóstico foram colocados de fato na barra superior (ActionBar), ao lado do nome do celular. O cartão redundante de Zoom saiu da grade; continuam pinça, −/1×/+ e ajuste longo sobre o número. O relatório do Redmi A3 mostrou parada real de quadros MJPEG sem erro EGL e falha IllegalStateException ao tentar H.264. Após 12 s sem publicação, o serviço de tela apagada reduz progressivamente resolução/FPS apenas para recuperar um fluxo parado, registra o ajuste e tenta reiniciar a câmera. Se H.264 falhar, fica bloqueado até nova sessão e preserva MJPEG. **Não é correção comprovada em aparelho: requer build Android e teste físico com diagnóstico.**
@@ -6,7 +8,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.74 (versionCode 84)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.75 (versionCode 85)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

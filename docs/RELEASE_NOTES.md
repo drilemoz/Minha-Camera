@@ -1,3 +1,8 @@
+# Minha Câmera 1.4.75 (versionCode 85)
+- Build APK 72: corrigida a etapa `compileProtocolTests` que incluía os stubs exclusivos do teste da lanterna; a suíte foi separada em `compileTorchTests`/`testTorch`.
+- `testProtocol` agora depende de `testTorch`, mantendo a verificação de comandos da lanterna no CI sem conflito de `SystemClock`.
+- FPS liberado e lanterna remota mantidos da 1.4.74; build Android no GitHub Actions e testes no Redmi A3 ainda pendentes.
+
 # Minha Câmera 1.4.74 (versionCode 84)
 - MJPEG com tela apagada deixa de impor 11 FPS quando solicitado 15/24/30 FPS em modo normal.
 - Controle remoto da lanterna traseira: OFF, 30s, 120s ou acompanhar REC, com confirmação e leitura de estado.

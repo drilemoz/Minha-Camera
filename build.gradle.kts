@@ -13,7 +13,12 @@ dependencies {
 }
 val protocolClasses = layout.buildDirectory.dir("protocol-tests/classes")
 val protocolSources = files(
-    fileTree("tests") { include("**/*.kt") },
+    fileTree("tests") {
+        include("**/*.kt")
+        // O teste da lanterna usa stubs próprios da Camera1 e de android.os;
+        // compilá-los com protocol-stubs declara SystemClock duas vezes.
+        exclude("torch-stubs/**", "PhoneTorchControllerSmoke.kt")
+    },
     listOf("NetUtil", "OnvifClient", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneVersionNotice", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneBackgroundRecovery", "PhonePipelineTelemetry", "RemoteTransferProgress", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
         "app/src/main/java/com/minhacamera/$it.kt"
     }
@@ -31,6 +36,35 @@ val compileProtocolTests by tasks.registering(JavaExec::class) {
             protocolSources.files.sortedBy { it.path }.map { it.absolutePath }
     }
 }
+// Smoke da lanterna em classpath independente: evita classe android.os.SystemClock
+// duplicada e inclui explicitamente PhoneTorchController, que não é puro.
+val torchClasses = layout.buildDirectory.dir("torch-tests/classes")
+val torchSources = files(
+    fileTree("tests/torch-stubs") { include("**/*.kt") },
+    "tests/PhoneTorchControllerSmoke.kt",
+    "app/src/main/java/com/minhacamera/PhoneEcoPolicy.kt",
+    "app/src/main/java/com/minhacamera/PhoneTorchController.kt"
+)
+val compileTorchTests by tasks.registering(JavaExec::class) {
+    classpath = protocolCompiler
+    mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+    inputs.files(torchSources)
+    inputs.files(protocolRuntime)
+    outputs.dir(torchClasses)
+    doFirst {
+        delete(torchClasses)
+        args = listOf("-no-stdlib", "-no-reflect", "-jvm-target", "17",
+            "-classpath", protocolRuntime.asPath, "-d", torchClasses.get().asFile.absolutePath) +
+            torchSources.files.sortedBy { it.path }.map { it.absolutePath }
+    }
+}
+tasks.register<JavaExec>("testTorch") {
+    dependsOn(compileTorchTests)
+    classpath = files(torchClasses) + protocolRuntime
+    mainClass.set("com.minhacamera.PhoneTorchControllerSmokeKt")
+}
+tasks.named("testProtocol") { dependsOn("testTorch") }
+
 // Executado também como dependência de testProtocol na CI: valida concorrência sem câmera física.
 tasks.register<JavaExec>("testBackgroundHandoff") {
     dependsOn(compileProtocolTests)

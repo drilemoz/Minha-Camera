@@ -1,3 +1,8 @@
+## 1.4.75+85 — 2026-10-17
+- Corrigido Build APK 72: compilação `:compileProtocolTests` falhava por redeclaração de `android.os.SystemClock` entre stubs de protocolo e de lanterna, e por não incluir a classe `PhoneTorchController` exigida pelo novo smoke test.
+- Compilação e execução do teste da lanterna em tarefas Gradle separadas (`compileTorchTests`/`testTorch`), dependentes de `testProtocol`, com seleção explícita das fontes e isolamento entre stubs.
+- Preservados os limites de FPS, a lanterna remota, H.264 experimental, versões de protocolo, assinatura e ABIs da 1.4.74. Compilação Android completa e dispositivos físicos ainda não validados.
+
 ## 1.4.74+84 — 2026-10-17
 - Removido o limitador normal de 90 ms entre quadros na captura MJPEG com tela apagada; agora o intervalo considera a meta 5/10/15/24/30 FPS, modo Eco e estado térmico.
 - Em modo normal admite teto solicitado de até 30 FPS, mas **não garante** FPS efetivos; modo Eco preserva 200 ms, bateria quente preserva 300 ms e estado morno limita aproximadamente 15 FPS.
