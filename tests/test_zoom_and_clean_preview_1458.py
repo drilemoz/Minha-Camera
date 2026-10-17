@@ -41,7 +41,7 @@ class ZoomAndPreview58(unittest.TestCase):
         self.assertIn('X-Zoom-Percent:',server)
         self.assertIn('changeZoom?.invoke(zoomPercent)',server)
         viewer=ET.parse(LAY/'activity_phone_viewer.xml').getroot()
-        find(viewer,'viewerRemoteZoom');find(viewer,'viewerFullZoom')
+        find(viewer,'viewerZoomReset');find(viewer,'viewerFullZoom')
         receiver=(KOT/'PhoneCameraViewerActivity.kt').read_text()
         self.assertIn('zoomCommandUrl(',receiver)
         self.assertIn('private fun chooseRemoteZoom()',receiver)

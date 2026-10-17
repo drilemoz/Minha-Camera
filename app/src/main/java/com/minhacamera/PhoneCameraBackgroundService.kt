@@ -160,6 +160,7 @@ class PhoneCameraBackgroundService : Service() {
     private var liveEncoder: PhoneH264LiveEncoder? = null // somente encodeWorker
     @Volatile private var liveCodec = "mjpeg"
     @Volatile private var codecPending = false
+    @Volatile private var h264FailedThisSession = false
     private var lastJpegPreviewAt = 0L
     @Volatile private var lastCaptureAtMs = 0L
     @Volatile private var frameCount = 0L
@@ -212,8 +213,19 @@ class PhoneCameraBackgroundService : Service() {
                     return
                 }
                 watchdogRestarts++
-                PhoneStreamDiagnostics.add("Watchdog reiniciando câmera: tentativa $watchdogRestarts")
-                server?.let { reconfigure(it, selectedFacing, requestedQuality) }
+                // 1080p/30 exige muitas cópias NV21 e compressões JPEG no Redmi A3.
+                // Somente após um travamento efetivo, recuperar em perfil progressivamente leve.
+                val newQuality = PhoneBackgroundRecovery.nextQuality(requestedQuality)
+                val newFps = PhoneBackgroundRecovery.nextFps(fpsLimit)
+                val lastCallbackAge = SystemClock.elapsedRealtime() - lastCaptureAtMs
+                PhoneStreamDiagnostics.add("Watchdog: publicação parada ${age}ms, callback ${lastCallbackAge}ms; " +
+                    "tentativa=$watchdogRestarts, qualidade $requestedQuality->$newQuality, FPS $fpsLimit->$newFps")
+                fpsLimit = newFps
+                firstFramePublished = false
+                startupPhase = "recuperando quadros"
+                // Atualizar valor efetivo, inclusive no protocolo remoto.
+                getSharedPreferences("phone_video", MODE_PRIVATE).edit().putInt("remote_fps", newFps).apply()
+                server?.let { reconfigure(it, selectedFacing, newQuality) }
             }
             mainHandler.postDelayed(this, 6000)
         }
@@ -274,6 +286,7 @@ class PhoneCameraBackgroundService : Service() {
                 starting = true
                 lastError = null
                 firstFramePublished = false
+                h264FailedThisSession = false
                 startupPhase = "permissão de câmera"
                 PhoneStreamDiagnostics.add("Tela apagada: serviço recebeu solicitação de início")
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -432,6 +445,7 @@ class PhoneCameraBackgroundService : Service() {
             requestKeyframe = { encodeWorker.execute { liveEncoder?.requestKeyframe() } },
             diagnostics = { diagnosis() },
             deviceModel = { Build.MODEL },
+            appVersion = { packageManager.getPackageInfo(packageName, 0).versionName ?: "" },
             resolutionStatus = { remoteResolution },
             recordingSeconds = { if (recording) ((SystemClock.elapsedRealtime() - recordingStartMs) / 1000).coerceAtLeast(0) else 0 },
             changeEco = { desired ->
@@ -720,7 +734,9 @@ class PhoneCameraBackgroundService : Service() {
                             .compressToJpeg(Rect(0, 0, width, height), 42, preview)) latestJpeg = preview.toByteArray()
                 }
             } catch (e: Exception) {
-                PhoneStreamDiagnostics.add("Encoder H264: ${e.javaClass.simpleName}")
+                h264FailedThisSession = true
+                PhoneStreamDiagnostics.add("Encoder H264: ${e.javaClass.simpleName}; " +
+                    "retornando para MJPEG, H.264 bloqueado nesta sessão")
                 lastError = "H.264 indisponível: ${e.javaClass.simpleName}"
                 liveEncoder?.close(); liveEncoder = null
                 liveCodec = "mjpeg"
@@ -844,6 +860,10 @@ class PhoneCameraBackgroundService : Service() {
 
     private fun changeStreamCodec(desired: String): Boolean {
         if (desired !in listOf("mjpeg", "h264") || closing || switching || !running || recording || takingPhoto) return false
+        if (desired == "h264" && h264FailedThisSession) {
+            PhoneStreamDiagnostics.add("H.264 rejeitado: encoder já falhou nesta sessão; use MJPEG")
+            return false
+        }
         if (desired == liveCodec) return true
         // Não anunciar o codec novo antes do primeiro quadro codificado quando não há encoder compatível.
         if (codecPending) return false

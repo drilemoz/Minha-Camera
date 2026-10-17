@@ -28,11 +28,10 @@ class RtspCompatibility1450(unittest.TestCase):
             self.assertIn(text, P)
         self.assertIn("lastVlcStats", P)
         self.assertIn("maskCredentials(report)", P)
-    def test_welcome_only_this_version(self):
-        for text in ("Alternativa de autenticação VLC", "Diagnóstico SETUP e PLAY", "Câmera e rede preservadas"):
-            self.assertIn(text, W)
-        for old_title in ("Mais formatos de vídeo", "Busca de serviços ampliada", "RTSP com diagnóstico mais rigoroso"):
-            self.assertNotIn(old_title, W)
-        self.assertNotIn("Novidades centralizadas", W)
+    def test_welcome_uses_current_release_highlights(self):
+        self.assertIn("PhoneReleaseHighlights.latest.first()", W)
+        self.assertNotIn('addHighlight(content, "Alternativa de autenticação VLC"', W)
+        self.assertNotIn('addHighlight(content, "Diagnóstico SETUP e PLAY"', W)
+        self.assertNotIn('Novidades centralizadas', W)
 
 if __name__ == "__main__": unittest.main()

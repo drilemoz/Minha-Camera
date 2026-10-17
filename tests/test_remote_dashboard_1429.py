@@ -6,7 +6,8 @@ A = '{http://schemas.android.com/apk/res/android}'
 
 def test_viewer_layout_controls_are_real():
     root = ET.parse(ROOT/'app/src/main/res/layout/activity_phone_viewer.xml').getroot()
-    ids={e.attrib.get(A+'id') for e in root.iter()}
+    actionbar = ET.parse(ROOT/'app/src/main/res/layout/phone_viewer_actionbar.xml').getroot()
+    ids={e.attrib.get(A+'id') for e in list(root.iter()) + list(actionbar.iter())}
     for control in ('viewerCodecTop','viewerCodecSubmenu','viewerBatteryPill','viewerTemperature','phoneViewerPreviewContainer',
         'viewerRecordAction','viewerSnapshotAction','viewerRotateAction','viewerPipAction',
         'viewerRemoteEco','viewerRemoteQualityValue','viewerRemoteFpsValue','phoneViewerMore',
@@ -32,6 +33,7 @@ def test_remote_commands_token_based_and_disabled_without_service():
 def test_no_nonfunctional_remote_zoom_or_resolution_controls():
     layout=(ROOT/'app/src/main/res/layout/activity_phone_viewer.xml').read_text()
     assert 'android:text="Resolução"' in layout and 'android:text="FPS"' in layout
-    assert '@+id/viewerRemoteZoom' in layout and '@+id/viewerZoomReset' in layout
+    assert '@+id/viewerRemoteZoom' not in layout and '@+id/viewerZoomReset' in layout
+    assert '@+id/viewerZoomMinus' in layout and '@+id/viewerZoomPlus' in layout
     viewer=(ROOT/'app/src/main/java/com/minhacamera/PhoneCameraViewerActivity.kt').read_text()
     assert 'sendRemoteZoom' in viewer and 'remoteZoomPercent' in viewer

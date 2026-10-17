@@ -4,6 +4,7 @@ from xml.etree import ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 KT=(ROOT/'app/src/main/java/com/minhacamera/PhoneCameraViewerActivity.kt').read_text()
 TREE=ET.parse(ROOT/'app/src/main/res/layout/activity_phone_viewer.xml').getroot()
+BAR=ET.parse(ROOT/'app/src/main/res/layout/phone_viewer_actionbar.xml').getroot()
 NS='{http://schemas.android.com/apk/res/android}'
 def get(id_):
     return next((v for v in TREE.iter() if v.attrib.get(NS+'id')=='@+id/'+id_),None)
@@ -33,4 +34,5 @@ def test_codec_in_place_without_popup():
     assert 'changeRemoteCodec("h264")' in KT
     assert get('viewerCodecAction') is None
     assert get('viewerDiagnosticsAction') is None
-    assert get('viewerDiagnosticTop') is not None
+    assert any(v.attrib.get(NS+'id')=='@+id/viewerDiagnosticTop' for v in BAR.iter())
+    assert any(v.attrib.get(NS+'id')=='@+id/viewerCodecTop' for v in BAR.iter())

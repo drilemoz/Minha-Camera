@@ -46,6 +46,7 @@ import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.snackbar.Snackbar
 import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
@@ -58,6 +59,8 @@ class RemoteMultimediaActivity : AppCompatActivity() {
     private lateinit var list: LinearLayout
     private lateinit var info: TextView
     private var busy = false
+    private var lastVersionNoticeKey: String? = null
+    private data class MediaResponse(val items: org.json.JSONArray, val version: String?)
     private var requestSerial = 0
     private val thumbnailCache = object : LruCache<String, Bitmap>(4 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -437,14 +440,26 @@ class RemoteMultimediaActivity : AppCompatActivity() {
                             bytes.write(buffer, 0, n)
                         }
                     }
-                    JSONObject(bytes.toString("UTF-8")).getJSONArray("items")
+                    MediaResponse(JSONObject(bytes.toString("UTF-8")).getJSONArray("items"),
+                        conn.getHeaderField("X-App-Version"))
                 } finally { conn.disconnect() }
             }
             runOnUiThread {
                 busy = false
                 if (isFinishing || isDestroyed || serial != requestSerial) return@runOnUiThread
                 list.removeAllViews()
-                result.onSuccess { items ->
+                result.onSuccess { response ->
+                    val items = response.items
+                    val remote = response.version?.trim().orEmpty()
+                    val key = "$live:${if (remote.isEmpty()) "unknown" else remote}"
+                    if (lastVersionNoticeKey != key) {
+                        lastVersionNoticeKey = key
+                        val local = packageManager.getPackageInfo(packageName, 0).versionName
+                        PhoneVersionNotice.message(local, remote)?.let { message ->
+                            Snackbar.make(findViewById(android.R.id.content), message, 9000)
+                                .setAction("Entendi") { }.show()
+                        }
+                    }
                     connectionStatus.text = "● Conectado · ${Uri.parse(live).host ?: "Rede local"}"
                     getSharedPreferences("phone_viewer", MODE_PRIVATE).edit().putString("last_url", live).apply()
                     val existing = CameraStore(this).load()

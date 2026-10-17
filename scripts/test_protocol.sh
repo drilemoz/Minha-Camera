@@ -21,6 +21,7 @@ kotlinc \
   "$ROOT/app/src/main/java/com/minhacamera/Nv21Frames.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneBatteryReading.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneCameraServer.kt" \
+  "$ROOT/app/src/main/java/com/minhacamera/PhoneVersionNotice.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneStreamStats.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneEcoPolicy.kt" \
   "$ROOT/app/src/main/java/com/minhacamera/PhoneAvcAnnexB.kt" \
@@ -29,8 +30,9 @@ kotlinc \
   "$ROOT/tests/PhoneAvcAnnexBSmoke.kt" \
   "$ROOT/tests/ProtocolSmoke.kt" \
   "$ROOT/tests/PhoneEcoPolicySmoke.kt" \
+  "$ROOT/tests/PhoneVersionNoticeSmoke.kt" \
   -include-runtime -d "$BUILD/tests.jar"
-java -jar "$BUILD/tests.jar"
+java -cp "$BUILD/tests.jar" com.minhacamera.ProtocolSmokeKt
 kotlinc "$ROOT/app/src/main/java/com/minhacamera/RtspPlaybackPolicy.kt" \
   "$ROOT/tests/RtspPlaybackSmoke.kt" -include-runtime -d "$BUILD/rtsp-retry.jar"
 java -jar "$BUILD/rtsp-retry.jar"
@@ -70,3 +72,11 @@ java -jar "$BUILD/background-handoff.jar"
 kotlinc "$ROOT/app/src/main/java/com/minhacamera/PhonePublishedFps.kt" \
   "$ROOT/tests/PhonePublishedFpsSmoke.kt" -include-runtime -d "$BUILD/published-fps.jar"
 java -jar "$BUILD/published-fps.jar"
+
+# Aviso compatibilidade: não bloquear quando versões divergirem ou não forem informadas.
+java -cp "$BUILD/tests.jar" com.minhacamera.PhoneVersionNoticeSmokeKt
+
+# Fluxo MJPEG sem quadros: recuperação progressiva de resolução/FPS, sem Android.
+kotlinc "$ROOT/app/src/main/java/com/minhacamera/PhoneBackgroundRecovery.kt" \
+  "$ROOT/tests/PhoneBackgroundRecoverySmoke.kt" -include-runtime -d "$BUILD/background-recovery.jar"
+java -jar "$BUILD/background-recovery.jar"

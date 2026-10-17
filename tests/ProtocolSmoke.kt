@@ -356,7 +356,7 @@ private fun checkMcrpV1Media() {
     val local = java.net.InetAddress.getByName("127.0.0.1") as java.net.Inet4Address
     val bytes = ByteArray(256) { it.toByte() }
     val server = PhoneCameraServer(local, token,
-        deviceModel = { "Android teste" }, codecStatus = { "mjpeg" },
+        deviceModel = { "Android teste" }, appVersion = { "1.4.71" }, codecStatus = { "mjpeg" },
         mediaIndex = { """{"protocol":"mcrp","version":1,"items":[{"id":"v_7","name":"clipe.mp4","mime":"video/mp4","size":256,"modified":1}]}""" },
         mediaOpen = { id -> if (id == "v_7") McrpMediaStream("clipe.mp4", "video/mp4", bytes.size.toLong()) {
             java.io.ByteArrayInputStream(bytes)
@@ -376,10 +376,17 @@ private fun checkMcrpV1Media() {
             val body = c.inputStream.bufferedReader().readText()
             check(body.contains("\"protocol\":\"mcrp\"") && body.contains("\"version\":1"))
             check(body.contains("Android teste") && body.contains("/live/$token"))
+            check(body.contains("\"app_version\":\"1.4.71\""))
+            check(c.getHeaderField("X-App-Version") == "1.4.71")
         }
         request("/control/$token/mcrp/media").useHttp { c ->
             check(c.responseCode == 200)
             check(c.inputStream.bufferedReader().readText().contains("clipe.mp4"))
+            check(c.getHeaderField("X-App-Version") == "1.4.71")
+        }
+        request("/control/$token/status").useHttp { c ->
+            check(c.responseCode == 200)
+            check(c.getHeaderField("X-App-Version") == "1.4.71")
         }
         request("/control/$token/mcrp/media/v_7", "bytes=5-9").useHttp { c ->
             check(c.responseCode == 206)

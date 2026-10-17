@@ -883,6 +883,7 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
                     }
                 },
                 deviceModel = { Build.MODEL },
+                appVersion = { packageManager.getPackageInfo(packageName, 0).versionName ?: "" },
                 resolutionStatus = {
                     if (frameRotation % 180 == 0) "${previewWidth}x${previewHeight}"
                     else "${previewHeight}x${previewWidth}"
@@ -1022,7 +1023,8 @@ class PhoneCameraActivity : AppCompatActivity(), TextureView.SurfaceTextureListe
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
         val session = try { PhoneCameraServer(ip, PhoneCameraAccess.token(this),
             mediaIndex = { PhoneRemoteLibrary(applicationContext).json() },
-            mediaOpen = { PhoneRemoteLibrary(applicationContext).open(it) }) }
+            mediaOpen = { PhoneRemoteLibrary(applicationContext).open(it) },
+            appVersion = { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }) }
             catch (_: Exception) { return false }
         val controller = PhoneDualCamera(this, { PhoneEcoPolicy.intervalMs(ecoEnabled, heatState) }, { a, b, w, h ->
             val now = SystemClock.elapsedRealtime()

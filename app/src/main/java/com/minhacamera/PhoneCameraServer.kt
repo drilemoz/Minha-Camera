@@ -42,7 +42,8 @@ class PhoneCameraServer(
     private val deviceModel: (() -> String)? = null,
     private val resolutionStatus: (() -> String)? = null,
     private val mediaIndex: (() -> String)? = null,
-    private val mediaOpen: ((String) -> McrpMediaStream?)? = null
+    private val mediaOpen: ((String) -> McrpMediaStream?)? = null,
+    private val appVersion: (() -> String)? = null
 ) {
     init { require(token.matches(Regex("[0-9a-f]{32}"))) }
     // A porta e o token permanecem os mesmos na troca entre Activity e Service.
@@ -143,7 +144,7 @@ class PhoneCameraServer(
             val mcrpRoot = "$control/mcrp"
             if (line == "GET $mcrpRoot/info HTTP/1.1" || line == "GET $mcrpRoot/info HTTP/1.0") {
                 val model = (deviceModel?.invoke() ?: "Android").replace(Regex("[^A-Za-z0-9 ._-]"), "").take(50)
-                val body = ("{\"protocol\":\"mcrp\",\"version\":1,\"device\":{\"model\":\"$model\"}," +
+                val body = ("{\"protocol\":\"mcrp\",\"version\":1,\"app_version\":\"${safeAppVersion()}\",\"device\":{\"model\":\"$model\"}," +
                     "\"stream\":{\"codec\":\"${if (codecStatus?.invoke() == "h264") "h264" else "mjpeg"}\",\"mjpeg\":\"$wanted\",\"h264\":\"${wanted.replace("/live/", "/h264/")}\"}," +
                     "\"capabilities\":{\"record\":${changeRecording != null},\"photo\":${takePhoto != null},\"eco\":${changeEco != null},\"facing\":${changeFacing != null},\"quality\":${changeQuality != null},\"fps\":${changeFps != null},\"zoom\":${changeZoom != null && zoomStatus?.invoke() != null},\"codec\":${changeCodec != null},\"media\":${mediaIndex != null}}}")
                 writeJson(peer, body)
@@ -204,6 +205,7 @@ class PhoneCameraServer(
                 val status = buildString {
                     append("HTTP/1.1 200 OK\r\nCache-Control: no-store\r\n")
                     append("X-Stream-Codec: ${codecStatus?.invoke() ?: "mjpeg"}\r\n")
+                    safeAppVersion().takeIf { it.isNotEmpty() }?.let { append("X-App-Version: $it\r\n") }
                     deviceModel?.invoke()?.replace(Regex("[^A-Za-z0-9 ._\\-]"), "")?.take(48)?.let {
                         append("X-Device-Model: $it\r\n")
                     }
@@ -341,10 +343,16 @@ class PhoneCameraServer(
         peer.getOutputStream().write("HTTP/1.1 $code $reason\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
     }
 
+    private fun safeAppVersion(): String = appVersion?.invoke()?.takeIf {
+        it.matches(Regex("[0-9]{1,3}(\\.[0-9]{1,3}){2,3}"))
+    }.orEmpty()
+
     private fun writeJson(peer: Socket, text: String) {
         val body = text.toByteArray(Charsets.UTF_8)
         peer.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\n" +
-            "X-MCRP-Version: 1\r\nCache-Control: no-store\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
+            "X-MCRP-Version: 1\r\n" +
+            (safeAppVersion().takeIf { it.isNotEmpty() }?.let { "X-App-Version: $it\r\n" } ?: "") +
+            "Cache-Control: no-store\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII))
         peer.getOutputStream().write(body)
     }
 

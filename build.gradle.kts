@@ -14,7 +14,7 @@ dependencies {
 val protocolClasses = layout.buildDirectory.dir("protocol-tests/classes")
 val protocolSources = files(
     fileTree("tests") { include("**/*.kt") },
-    listOf("NetUtil", "OnvifClient", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
+    listOf("NetUtil", "OnvifClient", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneVersionNotice", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneBackgroundRecovery", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
         "app/src/main/java/com/minhacamera/$it.kt"
     }
 )
@@ -52,3 +52,19 @@ tasks.register<JavaExec>("testPublishedFps") {
     mainClass.set("com.minhacamera.PhonePublishedFpsSmokeKt")
 }
 tasks.named("testProtocol") { dependsOn("testPublishedFps") }
+
+// Regressão de versão exibida/negociada, ligada ao mesmo preflight dos protocolos.
+tasks.register<JavaExec>("testVersionNotice") {
+    dependsOn(compileProtocolTests)
+    classpath = files(protocolClasses) + protocolRuntime
+    mainClass.set("com.minhacamera.PhoneVersionNoticeSmokeKt")
+}
+tasks.named("testProtocol") { dependsOn("testVersionNotice") }
+
+// Regressão do congelamento observado ao usar tela apagada no Redmi A3.
+tasks.register<JavaExec>("testBackgroundRecovery") {
+    dependsOn(compileProtocolTests)
+    classpath = files(protocolClasses) + protocolRuntime
+    mainClass.set("com.minhacamera.PhoneBackgroundRecoverySmokeKt")
+}
+tasks.named("testProtocol") { dependsOn("testBackgroundRecovery") }

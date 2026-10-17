@@ -45,6 +45,8 @@ jobs:
       - name: Verificar versionamento e compatibilidade do build
         run: |
           python3 scripts/check_version.py
+          python3 -m unittest discover -s tests -p test_release_and_version_1471.py -q
+          python3 -m unittest discover -s tests -p test_viewer_toolbar_recovery_1472.py -q
           python3 scripts/check_android_resources.py
           python3 scripts/check_viewer_bindings.py
           python3 scripts/check_transmitter_bindings.py

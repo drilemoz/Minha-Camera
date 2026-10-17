@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:gravity="center_vertical" android:orientation="horizontal"
+    android:paddingEnd="4dp" android:baselineAligned="false">
+    <TextView android:id="@+id/viewerActionbarDeviceName"
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:ellipsize="end" android:singleLine="true" android:textSize="19sp"
+        android:textColor="@color/app_text" android:contentDescription="Nome da câmera conectada" />
+    <TextView android:id="@+id/viewerCodecTop" android:layout_width="wrap_content"
+        android:layout_height="38dp" android:layout_marginStart="4dp" android:layout_marginEnd="5dp"
+        android:minWidth="75dp" android:gravity="center" android:paddingHorizontal="8dp"
+        android:drawableStart="@drawable/ic_ui_video" android:drawablePadding="4dp"
+        android:background="@drawable/bg_viewer_codec_chip" android:text="MJPEG"
+        android:textColor="@color/brand_primary" android:textStyle="bold" android:textSize="11sp"
+        android:clickable="true" android:focusable="true"
+        android:contentDescription="@string/phone_codec_title" />
+    <ImageView android:id="@+id/viewerDiagnosticTop" android:layout_width="42dp"
+        android:layout_height="42dp" android:padding="10dp" android:src="@drawable/ic_ui_bug"
+        android:background="@drawable/bg_viewer_icon_action" android:clickable="true"
+        android:focusable="true" android:contentDescription="@string/phone_diagnostic_title" />
+</LinearLayout>

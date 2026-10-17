@@ -41,7 +41,7 @@ class WelcomeActivity : AppCompatActivity() {
             addView(content)
         }
         setContentView(scroll)
-        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.55"
+        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: PhoneReleaseHighlights.latest.first().version
         content.addView(TextView(this).apply {
             text = "Novidades $version"
             textSize = 27f
@@ -54,12 +54,11 @@ class WelcomeActivity : AppCompatActivity() {
             setTextColor(getColor(R.color.ui_muted))
             setPadding(0, 0, 0, dp(18))
         })
-        addHighlight(content, "Alternativa de autenticação VLC",
-            "Se o login na URL falhar, o player tenta as credenciais pelas opções RTSP nativas antes de trocar o transporte.")
-        addHighlight(content, "Diagnóstico SETUP e PLAY",
-            "Após DESCRIBE 200, a análise verifica a sessão RTP/TCP e informa qual etapa respondeu ou falhou.")
-        addHighlight(content, "Câmera e rede preservadas",
-            "O cadastro e a senha não são modificados; a nova análise não exporta credenciais ou identificadores de sessão.")
+        PhoneReleaseHighlights.latest.first().let { release ->
+            addHighlight(content, release.title, release.detail)
+        }
+        addHighlight(content, "Compatibilidade de versões",
+            "O aviso ao conectar é apenas informativo. Transmissão e arquivos permanecem acessíveis mesmo com versões diferentes.")
         content.addView(MaterialButton(this).apply {
             text = getString(R.string.welcome_latest_continue)
             isAllCaps = false

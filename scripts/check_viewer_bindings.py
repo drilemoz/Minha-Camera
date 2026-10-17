@@ -16,7 +16,7 @@ ANDROID_ID = "{http://schemas.android.com/apk/res/android}id"
 
 
 def missing_view_ids():
-    referenced = set(re.findall(r"\bR\.id\.([A-Za-z_][A-Za-z_0-9]*)", SOURCE.read_text()))
+    referenced = set(re.findall(r"(?<!\.)\bR\.id\.([A-Za-z_][A-Za-z_0-9]*)", SOURCE.read_text()))
     declared = set()
     for path in RES.rglob("*.xml"):
         tree = ET.parse(path)

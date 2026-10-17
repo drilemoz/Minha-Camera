@@ -175,3 +175,13 @@ Distinguir serviço **iniciando**, **publicando primeiro quadro** e **liberando 
 - Build 68 revelou que `Gravity.CENTER_VERTICAL` em Kotlin sem `import android.view.Gravity` passa por validações de sintaxe mas falha ao compilar. Teste de regressão verifica import explicitamente.
 - Cabeçalho do receptor mantém uma única fonte de nome da câmera (ActionBar) e uma única duração da transmissão.
 - Menus de codec podem ser embutidos, sem overlay modal sobre vídeo; não altera transporte MJPEG/H.264 nem resolve artefatos cromáticos por si só.
+
+## Aprendizado 1.4.71 (versionamento exibido e conexão)
+
+- Sobre/Novidades devem consumir uma única fonte de destaques, validada contra a versão do Gradle.
+- A versão do aplicativo deve circular somente em endpoints de pareamento autenticado, separada da versão de protocolo.
+- Mostrar diferença sem bloquear; ausência de campo em transmissor legado não implica incompatibilidade.
+
+## Aprendizado 1.4.72 — serviço câmera com tela apagada
+
+Diagnóstico real Redmi A3: serviço MJPEG completou 253 frames de superfície, sem erros EGL, depois deixou de capturar/publicar; watchdog detectou 8–14 s sem quadros. Um outro ciclo abriu Camera.open/startPreview e publicou quadro em <2 s, mas encoder H.264 falhou com IllegalStateException. São falhas distintas. Estratégia defensiva: registrar separadamente último callback, último quadro publicado e saúde EGL; recuperar só após stall e com perfil progressivamente mais leve; não insistir no encoder incompatível na mesma sessão. Validar no hardware antes de transportar a solução para Vigia IA.

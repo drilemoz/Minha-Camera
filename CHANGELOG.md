@@ -1,3 +1,20 @@
+## 1.4.72+82 — 2026-10-17
+
+- Codec MJPEG/H.264 e ícone de diagnóstico realmente na ActionBar fixa do receptor, lado a lado com o nome; submenu embutido leva a rolagem para o início.
+- Removido cartão redundante de Zoom da grade; permanecem gesto de pinça, atalho −/1×/+ e configuração detalhada ao manter pressionado o valor 1×, com versão na tela cheia.
+- Diagnóstico real do Redmi A3: um episódio de MJPEG ficou sem quadros após 253 buffers de superfície, EGL sem erro, e outro episódio mostrou IllegalStateException no encoder H.264. Não houve evidência de erro da rede.
+- Watchdog com recuperação progressiva somente após >12 s sem quadros: reduz qualidade (1080→720→480→360p) e FPS (30→15→10→5), solicita reconfiguração e registra valores antigos/novos. Não degrada durante transmissão saudável.
+- Bloqueia reativação de H.264 na mesma sessão após falha do encoder, mantendo MJPEG como alternativa, e adiciona teste Kotlin independente da política de recuperação à CI.
+- Compilação Android e validação no Redmi A3 ainda pendentes; o driver da câmera pode continuar travando.
+
+## 1.4.71+81 — 2026-10-17
+
+- Tela Sobre agora mostra as três últimas versões corretas; Novidades usa a mesma fonte centralizada e não repete a análise RTSP de releases antigos.
+- Servidor anuncia versão do aplicativo em `X-App-Version` nas rotas autenticadas de status e índice MCRP e em `app_version` na informação MCRP; protocolo segue v1.
+- Receptor MJPEG/H.264 e galeria remota mostram alerta não bloqueante se a versão do outro celular for diferente, uma vez por versão conectada.
+- Transmissor legado sem versão identificada gera aviso de versão desconhecida, sem declarar incompatibilidade ou suspender a sessão.
+- CI inclui teste de consistência de destaques e aviso. Compilação Android e testes físicos ainda pendentes.
+
 ## 1.4.70+80 — 2026-10-17
 
 - Corrige `Unresolved reference Gravity` em `PhoneCameraViewerActivity.kt` registrado no Build APK 68 (duas ocorrências), adicionando import Android explícito.

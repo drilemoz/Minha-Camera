@@ -40,14 +40,7 @@ class AboutActivity : AppCompatActivity() {
         content.addView(TextView(this).apply { text = "Minha Câmera $version"; textSize = 25f; setTextColor(getColor(R.color.app_text)); setPadding(0, 0, 0, dp(4)) })
         content.addView(TextView(this).apply { text = "Transmissão e visualização de câmera por rede local, sem nuvem obrigatória."; textSize = 14f; setTextColor(getColor(R.color.ui_muted)); setPadding(0, 0, 0, dp(16)) })
         addBlock(content, "O que é o app", "Projeto auxiliar do Vigia IA voltado para transmissão local entre celulares, MJPEG/H.264 experimental, modo de tela apagada, gravação opcional e acesso remoto à multimídia.")
-        addBlock(content, "Últimas versões", """1.4.55+65
-• Receptor imersivo vertical/horizontal, giro local de 90°, grade compacta, opções ilustradas e exportação de diagnóstico.
-
-1.4.54+64
-• Digest corrigido no RTSP SETUP/PLAY, alternativas de autenticação LibVLC reforçadas.
-
-1.4.53+63
-• Negociação RTSP SETUP/PLAY/RTP e diagnóstico seguro de autenticação.""".trimIndent())
+        addBlock(content, "Últimas versões", PhoneReleaseHighlights.history())
         addBlock(content, "Privacidade e rede", "O foco permanece em rede local. O app não depende de envio obrigatório à nuvem para transmitir, assistir ou consultar a biblioteca do outro celular.")
         content.addView(MaterialButton(this).apply {
             text = getString(R.string.novidades)

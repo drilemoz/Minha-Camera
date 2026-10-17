@@ -33,6 +33,7 @@ import android.widget.Toast
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.snackbar.Snackbar
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -128,12 +129,14 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         }
     }
 
+    private var lastVersionNoticeKey: String? = null
     private data class RemoteStatus(val codec: String?, val transmissionSeconds: Long?,
         val recordSeconds: Long?, val recording: Boolean?, val battery: Int?, val temp: Int?,
         val charging: Boolean?, val eco: Boolean?, val quality: Int?, val fps: Int?, val facing: Int?,
         val resolution: String? = null,
         val zoomPercent: Int? = null, val zoomRatio100: Int? = null,
-        val zoomMaxRatio100: Int? = null, val measuredFps: Int? = null)
+        val zoomMaxRatio100: Int? = null, val measuredFps: Int? = null,
+        val appVersion: String? = null, val authenticated: Boolean = false)
     private lateinit var batteryPill: TextView
     private lateinit var temperatureLabel: TextView
     private lateinit var resolutionLabel: TextView
@@ -244,8 +247,14 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         applyViewerOrientation()
         setContentView(R.layout.activity_phone_viewer)
         title = intent.getStringExtra("name") ?: getString(R.string.phone_camera)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        // O título nativo da ActionBar é a única exibição do nome do aparelho.
+        supportActionBar?.apply {
+            setDisplayHomeAsUpEnabled(true)
+            // Os atalhos pertencem à barra superior, junto ao nome, não ao conteúdo rolável.
+            setDisplayShowTitleEnabled(false)
+            setDisplayShowCustomEnabled(true)
+            setCustomView(R.layout.phone_viewer_actionbar)
+        }
+        findViewById<TextView>(R.id.viewerActionbarDeviceName)?.text = title
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         codecButton = findViewById(R.id.viewerCodecTop)
         remoteClock = findViewById(R.id.viewerTransmissionClock)
@@ -260,7 +269,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         temperatureLabel = findViewById(R.id.viewerTemperature)
         resolutionLabel = findViewById(R.id.viewerRemoteQualityValue)
         fpsLabel = findViewById(R.id.viewerRemoteFpsValue)
-        remoteZoomLabel = findViewById(R.id.viewerRemoteZoomValue)
+        remoteZoomLabel = findViewById(R.id.viewerZoomReset)
         ecoLabel = findViewById(R.id.viewerRemoteEcoValue)
         recordingClock = findViewById(R.id.viewerRecordingClock)
         facingLabel = findViewById(R.id.viewerRemoteFacingValue)
@@ -324,7 +333,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
                 if (initialRemote != null) {
                     val desired = PhonePinchZoom.remotePercent(initialRemote, pinchScaleTotal)
                     queueGestureZoom(desired)
-                    remoteZoomLabel.text = "Zoom remoto solicitado: $desired%"
+                    remoteZoomLabel.text = "…"
                 } else {
                     localZoomFactor = PhonePinchZoom.localFactor(pinchStartLocalFactor, pinchScaleTotal)
                     applyLocalZoom()
@@ -349,7 +358,6 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         findViewById<View>(R.id.viewerSnapshotAction).setOnClickListener { requestRemotePhoto() }
         findViewById<View>(R.id.viewerRemoteQuality).setOnClickListener { chooseRemoteQuality() }
         findViewById<View>(R.id.viewerRemoteFps).setOnClickListener { chooseRemoteFps() }
-        findViewById<View>(R.id.viewerRemoteZoom).setOnClickListener { chooseRemoteZoom() }
         findViewById<View>(R.id.viewerFullZoom).setOnClickListener { chooseRemoteZoom() }
         for (id in intArrayOf(R.id.viewerZoomMinus, R.id.viewerFullZoomMinus))
             findViewById<View>(id).setOnClickListener { stepZoom(-1) }
@@ -357,6 +365,11 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
             findViewById<View>(id).setOnClickListener { stepZoom(1) }
         for (id in intArrayOf(R.id.viewerZoomReset, R.id.viewerFullZoomReset))
             findViewById<View>(id).setOnClickListener { resetZoom() }
+        // O ajuste detalhado fica acessível mantendo pressionado o valor central.
+        findViewById<View>(R.id.viewerZoomReset).setOnLongClickListener {
+            chooseRemoteZoom()
+            true
+        }
         findViewById<View>(R.id.viewerRemoteFacing).setOnClickListener { chooseRemoteFacing() }
         findViewById<View>(R.id.viewerFullBack).setOnClickListener { if (focusMode) toggleFocusMode() }
         findViewById<View>(R.id.viewerFullscreenExitTop).setOnClickListener { if (focusMode) toggleFocusMode() }
@@ -872,9 +885,9 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
 
     private fun updateZoomLabel() {
         remoteZoomLabel.text = if (remoteZoomPercent == null) {
-            String.format(Locale.forLanguageTag("pt-BR"), "Local %.2f×", localZoomFactor)
+            String.format(Locale.US, "%.1f×", localZoomFactor)
         } else remoteZoomRatio100?.let { String.format(Locale.US, "%.1f×", it / 100f) }
-            ?: "Remoto ${remoteZoomPercent}%"
+            ?: "1×"
     }
 
     /** Atalhos proporcionais ao limite real informado pela câmera, sem presumir 10×. */
@@ -958,7 +971,7 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
         }
         val endpoint = PhoneCameraUrls.zoomCommandUrl(intent.getStringExtra("url").orEmpty(), percent)
         postRemote(endpoint, R.string.viewer_remote_zoom_requested) {
-            remoteZoomLabel.text = "Confirmando…"
+            remoteZoomLabel.text = "…"
         }
     }
 
@@ -966,7 +979,11 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
     private fun chooseRemoteCodec() {
         val opening = codecSubmenu.visibility != View.VISIBLE
         codecSubmenu.visibility = if (opening) View.VISIBLE else View.GONE
-        if (opening) updateCodecSubmenu()
+        if (opening) {
+            updateCodecSubmenu()
+            // O acionador fica na ActionBar fixa; revelar as opções abaixo dela.
+            scrollContent.post { scrollContent.smoothScrollTo(0, 0) }
+        }
     }
 
     private fun updateCodecSubmenu() {
@@ -1033,12 +1050,24 @@ class PhoneCameraViewerActivity : AppCompatActivity() {
                     if (bool("X-Zoom-Supported") == true) int("X-Zoom-Percent") else null,
                     if (bool("X-Zoom-Supported") == true) int("X-Zoom-Ratio-100") else null,
                     if (bool("X-Zoom-Supported") == true) int("X-Zoom-Max-Ratio-100") else null,
-                    int("X-FPS-Measured"))
+                    int("X-FPS-Measured"), conn.getHeaderField("X-App-Version"), true)
             } finally { conn.disconnect() }
         } catch (_: Exception) { RemoteStatus(null,null,null,null,null,null,null,null,null,null,null) }
     }
 
     private fun applyRemoteStatus(state: RemoteStatus) {
+        if (state.authenticated) {
+            val remote = state.appVersion?.trim().orEmpty()
+            val key = if (remote.isEmpty()) "unknown" else remote
+            if (lastVersionNoticeKey != key) {
+                lastVersionNoticeKey = key
+                val local = packageManager.getPackageInfo(packageName, 0).versionName
+                PhoneVersionNotice.message(local, remote)?.let { message ->
+                    Snackbar.make(findViewById(android.R.id.content), message, 9000)
+                        .setAction("Entendi") { }.show()
+                }
+            }
+        }
         state.transmissionSeconds?.let { seconds ->
             remoteClock.text = String.format(Locale.US, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
         }

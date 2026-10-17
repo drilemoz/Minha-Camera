@@ -1,3 +1,18 @@
+# Minha Câmera 1.4.72 (versionCode 82)
+
+- Cabeçalho do receptor com nome, seletor MJPEG/H.264 e diagnóstico na barra superior; selecionador embutido, sem popup.
+- Controles de zoom mantidos em formato compacto −/1×/+, toque prolongado no número para ajustar e zoom por gesto.
+- Diagnóstico do Redmi A3 aponta parada dos quadros do MJPEG e falha independente do encoder H.264. Recuperação escalonada de resolução/FPS apenas quando o MJPEG travar; sessões H.264 com falha retornam a MJPEG.
+- Testes puros Kotlin e Python; ainda faltam Gradle/Android e reprodução do problema no aparelho. Não declarar o travamento definitivamente resolvido.
+
+# Minha Câmera 1.4.71 (versionCode 81)
+
+- Sobre e Novidades sincronizados com as três últimas alterações de fato entregues.
+- Ao conectar duas instâncias Minha Câmera, aviso não bloqueante de versões diferentes, preservando vídeo, controles e galeria.
+- Aparelhos antigos que não anunciam versão continuam acessíveis e recebem aviso de comparação indisponível.
+- O protocolo MCRP continua na versão 1; não há mudança nos tokens, credenciais ou permissões.
+- Release Android e teste físico ainda não foram concluídos.
+
 # Minha Câmera 1.4.70 (versionCode 80)
 
 - Build APK 68: erro Kotlin de `Gravity` no controle de zoom corrigido.
