@@ -1,3 +1,9 @@
+# Minha Câmera 1.4.79 (versionCode 89)
+- Build APK 77: erro de compilação da captura JPEG corrigido, usando `android.view.PixelCopy`.
+- Adicionado teste preventivo à etapa de verificação do workflow.
+- Media3 RTSP permanece desabilitado por incompatibilidade não resolvida; sem transcodificação RTSP H.265→MP4/H.264.
+- Compilação Android após esta correção e teste físico da captura ainda pendentes.
+
 # Minha Câmera 1.4.78 (versionCode 88)
 - Versionamento sequencial corrigido após a entrega anterior.
 - Teste CI desatualizado de 1.4.76 corrigido; nova checagem evita divergências entre Gradle e histórico de novidades.

@@ -1,4 +1,6 @@
-**Novo em 1.4.78:** corrigido versionamento não incrementado na entrega anterior e teste de CI que ainda exigia 1.4.76; histórico de novidades e documentação sincronizados. A captura JPEG da 1.4.77 foi preservada. Compilação Android e testes no aparelho pendentes.
+**Novo em 1.4.79:** Build APK 77: corrigida importação de `PixelCopy` no visualizador RTSP, de `android.graphics` para `android.view`, permitindo compilar a função de captura JPEG. Adicionado teste preventivo da API. Media3 RTSP e gravação RTSP em MP4 permanecem pendentes. Compilação Android e testes no aparelho ainda não executados.
+
+**Anterior em 1.4.78:** corrigido versionamento não incrementado na entrega anterior e teste de CI que ainda exigia 1.4.76; histórico de novidades e documentação sincronizados. A captura JPEG da 1.4.77 foi preservada. Compilação Android e testes no aparelho pendentes.
 
 **Histórico da 1.4.77:** corrigido Build APK 73: registro de `testProtocol` ocorre antes de sua configuração via `tasks.named()`, evitando `UnknownTaskException` no Gradle. Adicionado teste de regressão à CI para conferir a ordem de todas as tarefas nomeadas. Preservados FPS, lanterna remota, H.264 experimental, autenticação e assinatura da 1.4.75. A compilação Android completa ainda precisa ser confirmada no GitHub Actions.
 
@@ -12,7 +14,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.78 (versionCode 88)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.79 (versionCode 89)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

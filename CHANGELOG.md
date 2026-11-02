@@ -1,3 +1,9 @@
+## 1.4.79+89 — 2026-11-02
+- Build APK 77: corrigido erro Kotlin em `PlayerActivity.kt` porque `PixelCopy` estava importado de `android.graphics`; a API correta é `android.view.PixelCopy`.
+- Acrescentado teste de regressão pré-build para garantir a importação correta e a chamada da captura JPEG.
+- Mantidos LibVLC e Media3 RTSP desativado por precaução; gravação do RTSP H.265 em MP4/H.264 não foi implementada.
+- Falha anterior ocorreu em `:app:compileReleaseKotlin`; compilação após correção e testes físicos pendentes.
+
 ## 1.4.78+88 — 2026-11-02
 - Corrigido o versionamento sequencial não incrementado após a correção do Build APK 76.
 - Corrigido teste CI test_investigation_transfer_1473.py que ainda exigia 1.4.76+86.

@@ -2,7 +2,7 @@ package com.minhacamera
 
 import android.content.ContentValues
 import android.graphics.Bitmap
-import android.graphics.PixelCopy
+import android.view.PixelCopy
 import android.os.Environment
 import android.provider.MediaStore
 import android.view.SurfaceView
