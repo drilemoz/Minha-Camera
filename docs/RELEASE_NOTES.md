@@ -1,3 +1,9 @@
+# Minha Câmera 1.4.78 (versionCode 88)
+- Versionamento sequencial corrigido após a entrega anterior.
+- Teste CI desatualizado de 1.4.76 corrigido; nova checagem evita divergências entre Gradle e histórico de novidades.
+- Captura JPEG introduzida na 1.4.77 mantida.
+- Media3 RTSP e conversão H.265→MP4/H.264 ainda não implementados. Build Android e testes físicos pendentes.
+
 ## Captura JPEG (1.4.77)
 Menu do player: Capturar JPEG. Requer quadro visível e Android 10+. Media3 e transcodificação RTSP não habilitados nesta versão.
 

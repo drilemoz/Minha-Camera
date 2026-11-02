@@ -4,9 +4,9 @@ package com.minhacamera
 object PhoneReleaseHighlights {
     data class Entry(val version: String, val code: Int, val title: String, val detail: String)
     val latest = listOf(
+        Entry("1.4.78", 88, "Versionamento e CI corrigidos", "Versionamento 1.4.78+88 sincronizado e teste de CI desatualizado corrigido; mantida a captura JPEG via PixelCopy da 1.4.77. Reprodução RTSP Media3 e transcodificação MP4 ainda pendentes."),
+        Entry("1.4.77", 87, "Captura JPEG RTSP", "Adicionada captura manual de quadros RTSP em JPEG via PixelCopy e MediaStore no Android 10+; gravação RTSP em MP4 e Media3 ainda pendentes."),
         Entry("1.4.76", 86, "Build APK 73 corrigido", "Corrigido registro antecipado de testProtocol no Gradle, que impedia compilar os APKs; novo teste CI verifica a ordem das tarefas. Mantidos FPS, lanterna remota e diagnóstico H.264."),
-        Entry("1.4.75", 85, "Build APK 72 corrigido", "A suíte Gradle da lanterna foi isolada para evitar a classe SystemClock duplicada e incluir PhoneTorchController no teste; mantém FPS e lanterna remota da 1.4.74."),
-        Entry("1.4.74", 84, "FPS e lanterna remota", "MJPEG em segundo plano respeita a meta de até 30 FPS em condições normais, com proteção térmica; lanterna traseira remota por 30s, 2min ou durante REC; diagnóstico do encoder H.264 com motivos de rejeição."),
     )
     fun history(): String = latest.joinToString("\n\n") { "${it.version}+${it.code}\n• ${it.detail}" }
 }

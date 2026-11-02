@@ -1,3 +1,10 @@
+## 1.4.78+88 — 2026-11-02
+- Corrigido o versionamento sequencial não incrementado após a correção do Build APK 76.
+- Corrigido teste CI test_investigation_transfer_1473.py que ainda exigia 1.4.76+86.
+- Atualizados versão no Gradle, histórico de novidades, testes, notas e documentação; captura JPEG preservada.
+- Reprodução Media3 RTSP e transcodificação H.265 para MP4/H.264 continuam pendentes.
+- Build APK e testes em dispositivos ainda não realizados.
+
 ## 1.4.77 (+87)
 - Captura manual de JPEG no player RTSP via PixelCopy/MediaStore em Android 10+.
 - Media3 RTSP permanece bloqueado por incompatibilidade documentada; transcodificação RTSP para MP4 não implementada.
