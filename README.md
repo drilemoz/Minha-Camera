@@ -1,4 +1,4 @@
-**Novo em 1.4.76:** corrigido Build APK 73: registro de `testProtocol` ocorre antes de sua configuração via `tasks.named()`, evitando `UnknownTaskException` no Gradle. Adicionado teste de regressão à CI para conferir a ordem de todas as tarefas nomeadas. Preservados FPS, lanterna remota, H.264 experimental, autenticação e assinatura da 1.4.75. A compilação Android completa ainda precisa ser confirmada no GitHub Actions.
+**Novo em 1.4.77:** corrigido Build APK 73: registro de `testProtocol` ocorre antes de sua configuração via `tasks.named()`, evitando `UnknownTaskException` no Gradle. Adicionado teste de regressão à CI para conferir a ordem de todas as tarefas nomeadas. Preservados FPS, lanterna remota, H.264 experimental, autenticação e assinatura da 1.4.75. A compilação Android completa ainda precisa ser confirmada no GitHub Actions.
 
 **Novo em 1.4.75:** corrigido Build APK 72: os testes Gradle de controle da lanterna compilam em conjunto isolado, com seus próprios stubs de Android, eliminando redeclaração de `SystemClock` e referência não resolvida de `PhoneTorchController`. `testProtocol` executa também `testTorch`. Sem mudanças no streaming/FPS, lanterna, token remoto ou assinatura da 1.4.74. Build Android completo ainda precisa ser confirmado no GitHub Actions.
 
@@ -10,7 +10,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.76 (versionCode 86)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.77 (versionCode 87)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 
@@ -210,3 +210,5 @@ No player: **Gravar** → **Iniciar gravação**. Se necessário, o app conecta 
 **Imagem** oferece imagem inteira, lente superior inteira e lente inferior inteira, sempre sem zoom para câmeras que juntam duas lentes em um único fluxo. Somente a outra metade é ocultada; a lente escolhida mantém todas as bordas e a proporção, com barras quando necessário. A gravação salva o fluxo completo. **Tela cheia** esconde a barra superior e barras do sistema. Não há controle PTZ nem seleção física de lentes implementados.
 
 Resultados atuais em [PLAYER_FIT_VALIDATION.md](docs/PLAYER_FIT_VALIDATION.md). Histórico da 1.4.8 em [UI_RECORDING_VALIDATION.md](docs/UI_RECORDING_VALIDATION.md). O comprovante anterior [BUILD_VALIDATION.md](docs/BUILD_VALIDATION.md) se refere somente à 1.4.7.
+
+**1.4.77:** captura manual JPEG via PixelCopy da superfície RTSP no menu do player, salva via MediaStore em Android 10+. Sem transcodificação RTSP H.265→H.264; Media3 RTSP permanece bloqueado por risco de crash CSeq. Build e teste em aparelho pendentes.

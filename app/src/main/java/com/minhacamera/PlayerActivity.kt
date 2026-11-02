@@ -1,5 +1,11 @@
 package com.minhacamera
 
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.graphics.PixelCopy
+import android.os.Environment
+import android.provider.MediaStore
+import android.view.SurfaceView
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -348,7 +354,8 @@ class PlayerActivity : AppCompatActivity() {
         viewport.post { applyDisplayMode(); applyFullscreen() }
     }
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(0, 2002, 1, R.string.usar_vlc)
+        menu.add(0, 2011, 1, "Capturar JPEG")
+        menu.add(0, 2002, 2, R.string.usar_vlc)
         menu.add(0, 2003, 2, R.string.informacoes_tecnicas)
         menu.add(0, 2004, 3, R.string.identificar_camera)
         menu.add(0, 2005, 4, R.string.pip_window)
@@ -364,6 +371,7 @@ class PlayerActivity : AppCompatActivity() {
         return true
     }
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        2011 -> { captureJpeg(); true }
         2002 -> { resetAndPlay(Engine.VLC); true }
         2003 -> { showReport("Informações da transmissão", reportSnapshot()); true }
         2004 -> { identifyCamera(); true }
@@ -375,6 +383,64 @@ class PlayerActivity : AppCompatActivity() {
         2010 -> { showSupportedMethods(); true }
         else -> super.onOptionsItemSelected(item)
     }
+    /** Copia pixels da superfície decodificada, sem capturar controles nem inventar quadros. */
+    private fun captureJpeg() {
+        if (!videoReady || Build.VERSION.SDK_INT < 29) {
+            Toast.makeText(this, "Aguarde um quadro de vídeo (captura requer Android 10+)", Toast.LENGTH_LONG).show()
+            return
+        }
+        val root = if (engine == Engine.VLC) vlcView else exoView
+        fun findSurface(view: View): SurfaceView? {
+            if (view is SurfaceView && view.visibility == View.VISIBLE) return view
+            if (view is android.view.ViewGroup) for (i in 0 until view.childCount) {
+                findSurface(view.getChildAt(i))?.let { return it }
+            }
+            return null
+        }
+        val surface = findSurface(root)
+        if (surface == null || surface.width <= 0 || surface.height <= 0) {
+            Toast.makeText(this, "Superfície de vídeo indisponível", Toast.LENGTH_LONG).show()
+            return
+        }
+        val bitmap = try { Bitmap.createBitmap(surface.width, surface.height, Bitmap.Config.ARGB_8888) }
+            catch (_: OutOfMemoryError) { Toast.makeText(this, "Memória insuficiente para captura", Toast.LENGTH_LONG).show(); return }
+        val capturedGeneration = generation
+        PixelCopy.request(surface, bitmap, { result ->
+            if (result != PixelCopy.SUCCESS || !active || generation != capturedGeneration) {
+                bitmap.recycle()
+                Toast.makeText(this, "Não foi possível capturar o quadro", Toast.LENGTH_LONG).show()
+                return@request
+            }
+            Thread {
+                var saved = false
+                var uri: Uri? = null
+                try {
+                    val name = "Camera_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".jpg"
+                    val values = ContentValues().apply {
+                        put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Minha Câmera")
+                            put(MediaStore.Images.Media.IS_PENDING, 1)
+                        }
+                    }
+                    uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    val target = uri ?: error("Falha ao criar imagem")
+                    contentResolver.openOutputStream(target)?.use { out ->
+                        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)) error("Falha JPEG")
+                    } ?: error("Falha ao abrir imagem")
+                    if (Build.VERSION.SDK_INT >= 29) contentResolver.update(target, ContentValues().apply {
+                        put(MediaStore.Images.Media.IS_PENDING, 0)
+                    }, null, null)
+                    saved = true
+                } catch (_: Exception) { uri?.let { runCatching { contentResolver.delete(it, null, null) } } }
+                finally { bitmap.recycle() }
+                runOnUiThread { if (!isDestroyed) Toast.makeText(this,
+                    if (saved) "Imagem JPEG salva na galeria" else "Falha ao salvar JPEG", Toast.LENGTH_LONG).show() }
+            }.start()
+        }, mainHandler)
+    }
+
     override fun onSupportNavigateUp(): Boolean { if (fullscreen) { fullscreen=false; applyFullscreen() } else finish(); return true }
     override fun onStart() {
         super.onStart()

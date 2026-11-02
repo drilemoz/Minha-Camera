@@ -1,4 +1,9 @@
-## 1.4.76+86 — 2026-10-17
+## 1.4.77 (+87)
+- Captura manual de JPEG no player RTSP via PixelCopy/MediaStore em Android 10+.
+- Media3 RTSP permanece bloqueado por incompatibilidade documentada; transcodificação RTSP para MP4 não implementada.
+- Build Android e testes reais pendentes.
+
+## 1.4.77+87 — 2026-10-17
 - Corrigido Build APK 73: erro de avaliação do Gradle (`UnknownTaskException: Task with name 'testProtocol' not found`) porque `tasks.named("testProtocol")` era chamado antes de `tasks.register<JavaExec>("testProtocol")`.
 - Reordenada a configuração da dependência de `testTorch` para após o registro de `testProtocol`. Novo teste de regressão verifica a ordem de declaração das tarefas nomeadas; executado no preflight do GitHub Actions.
 - Sem mudanças de comportamento no FPS, controle remoto da lanterna, codec ou assinatura. O Build Android completo segue pendente de CI.

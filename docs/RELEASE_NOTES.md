@@ -1,4 +1,7 @@
-# Minha Câmera 1.4.76 (versionCode 86)
+## Captura JPEG (1.4.77)
+Menu do player: Capturar JPEG. Requer quadro visível e Android 10+. Media3 e transcodificação RTSP não habilitados nesta versão.
+
+# Minha Câmera 1.4.77 (versionCode 87)
 - Build APK 73: corrigida `UnknownTaskException` no Gradle ao configurar `testProtocol` antes de registrá-la.
 - `testTorch` continua dependência de `testProtocol`, com compilação e stubs independentes.
 - Nova verificação automatizada para evitar futuros `tasks.named` prematuros.
