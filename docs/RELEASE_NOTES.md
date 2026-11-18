@@ -1,3 +1,8 @@
+# Minha Câmera 1.4.88 (versionCode 98)
+
+- Tela cheia automática no visualizador IP ao girar para horizontal, sem trocar a lente nem reconectar.
+- Se o tamanho do vídeo ainda não estiver disponível, a imagem inteira permanece visível com um aviso discreto. O recorte volta quando houver dimensões suficientes.
+
 # Minha Câmera 1.4.87 (versionCode 97)
 
 - Corrige a etapa de verificação que encerrava o Build APK #84 antes de gerar o APK.

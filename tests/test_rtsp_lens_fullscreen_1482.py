@@ -36,12 +36,41 @@ class LensFullscreenTests(unittest.TestCase):
         self.assertNotIn("resetAndPlay", chooser)
         self.assertIn('if (fullscreen || pipVisible) View.GONE else View.VISIBLE', fullscreen)
 
-    def test_unknown_dimensions_are_visible_as_status_not_composite_view(self):
+    def test_unknown_dimensions_keep_live_picture_and_show_compact_notice(self):
         status = next(v for v in self.layout.iter() if v.get(ANDROID + "id") == "@+id/cropNotice")
-        self.assertEqual(status.get(ANDROID + "background"), "#000000")
-        self.assertEqual(status.get(ANDROID + "layout_height"), "match_parent")
-        self.assertIn("cropNotice.visibility = if (waitingForCrop)", self.player)
-        self.assertIn("if (videoAspect == 0.0 && remaining > 0)", self.player)
+        self.assertEqual(status.get(ANDROID + "background"), "@drawable/player_badge")
+        self.assertEqual(status.get(ANDROID + "layout_height"), "wrap_content")
+        self.assertIn("cropNotice.visibility = if (waitingForCrop && !pipVisible)", self.player)
+        self.assertIn("Imagem inteira mantida: recorte aguardando dimensões", self.player)
+        apply = self.function("    private fun applyDisplayMode()", "    private fun identifyCamera()")
+        self.assertIn("frame?.videoTop ?: 0f", apply)
+        self.assertNotIn("vlcView.visibility =", apply)
+
+    def test_rotation_updates_geometry_without_reconnecting_or_changing_lens(self):
+        rotation = self.function("    override fun onConfigurationChanged", "    override fun onCreateOptionsMenu")
+        self.assertIn("VideoGeometry.afterRotation(fullscreenMode, landscape)", rotation)
+        self.assertIn("if (landscape == lastLandscape) return", rotation)
+        self.assertIn("applyFullscreen()", rotation)
+        self.assertIn("!pipVisible && !isInPictureInPictureMode", rotation)
+        self.assertIn('putString("fullscreenMode"', self.player)
+        self.assertNotRegex(rotation, r"\bdisplayMode\s*=(?!=)")
+        for marker in ("resetAndPlay", "playCurrent", "releasePlayers", "detachViews"):
+            self.assertNotIn(marker, rotation)
+        self.assertIn("next.setUseOrientationFromBounds(true)", self.player)
+        self.assertIn("vlcPlayer?.updateVideoSurfaces()", self.player)
+
+    def test_vlc_resolves_missing_active_track_without_guessing_from_screen(self):
+        geometry = self.function("    private fun readVlcVideoSize(", "    private fun applyDisplayMode()")
+        self.assertIn("player.currentVideoTrack", geometry)
+        self.assertIn("media.getTrack(it) as? IMedia.VideoTrack", geometry)
+        self.assertIn("tracks.singleOrNull()", geometry)
+        self.assertIn("finally { media.release() }", geometry)
+        self.assertIn("source = VideoGeometry.Source.RENDERED_LAYOUT", geometry)
+        self.assertIn("?.layoutParams", geometry)
+        self.assertNotIn("viewport.width", geometry)
+        self.assertIn("generation == current", geometry)
+        self.assertIn("videoGeometry = null", self.player)
+        self.assertIn("removeOnLayoutChangeListener", self.player)
 
     def test_capture_and_pip_use_correct_output(self):
         self.assertIn("texture.getBitmap", self.player)

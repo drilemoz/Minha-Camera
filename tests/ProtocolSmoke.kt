@@ -262,6 +262,23 @@ private fun checkVideoGeometry() {
     check(VideoGeometry.fitHalf(500, 500, Double.NaN, false) == null)
     check(VideoGeometry.displayedAspect(0.0, true) == null)
     check(VideoGeometry.displayedAspect(Double.MAX_VALUE, true) == null)
+    val source = VideoGeometry.sourceAspect(1920, 2160)!!
+    check(kotlin.math.abs(source - 8.0 / 9) < 0.0001)
+    check(VideoGeometry.sourceAspect(1080, 1920, rotated = true) == 1920.0 / 1080)
+    check(VideoGeometry.sourceAspect(-1, -1) == null)
+    check(VideoGeometry.sourceAspect(1920, 2160, 0.0) == null)
+    val layoutGeometry = VideoGeometry.Aspect(source, VideoGeometry.Source.RENDERED_LAYOUT)
+    check(layoutGeometry.accepts(VideoGeometry.Source.ACTIVE_TRACK))
+    val trackGeometry = VideoGeometry.Aspect(source, VideoGeometry.Source.ACTIVE_TRACK)
+    check(!trackGeometry.accepts(VideoGeometry.Source.RENDERED_LAYOUT))
+    val fullWidth = VideoGeometry.fitFull(1536, 691, source)!!
+    val oneLens = VideoGeometry.fitHalf(1536, 691, source, true)!!
+    check(oneLens.width > fullWidth.width && oneLens.clipHeight == 691)
+    check(oneLens.videoTop == -691f)
+    val auto = VideoGeometry.afterRotation(VideoGeometry.Fullscreen.OFF, true)
+    check(auto == VideoGeometry.Fullscreen.ROTATION)
+    check(VideoGeometry.afterRotation(auto, false) == VideoGeometry.Fullscreen.OFF)
+    check(VideoGeometry.afterRotation(VideoGeometry.Fullscreen.MANUAL, false) == VideoGeometry.Fullscreen.MANUAL)
     println("OK: lente inteira sem perda de bordas em retrato/horizontal, duas metades e proporções diferentes")
 }
 

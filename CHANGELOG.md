@@ -1,3 +1,9 @@
+## 1.4.88+98 — 2026-11-18
+
+- O visualizador IP abre tela cheia ao girar para horizontal. Ao voltar para vertical encerra apenas o modo automático. A tela cheia manual permanece ativa até o toque em Sair.
+- O recorte da lente usa a faixa ativa, os metadados da mídia ou a geometria real da saída LibVLC. O vídeo permanece visível quando faltam dimensões. A rotação não troca a lente nem reinicia o player.
+- O relatório indica a rotação e a fonte das dimensões. Mantidos RTSP, PiP, gravação, recuperação de endereço e publicação do APK universal.
+
 ## 1.4.87+97 — 2026-11-18
 
 - Build APK #84: o teste isolado do atualizador não conseguia importar a política de tamanho e interrompia o preflight.

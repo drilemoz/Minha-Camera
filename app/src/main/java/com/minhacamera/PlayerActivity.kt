@@ -53,6 +53,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
+import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.MediaPlayer as VlcMediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 import java.io.File
@@ -107,11 +108,17 @@ class PlayerActivity : AppCompatActivity() {
     private var hevcSeen = false
     private var failedGeneration = -1
     private var videoReady = false
-    private var fullscreen = false
+    private var fullscreenMode = VideoGeometry.Fullscreen.OFF
+    private val fullscreen: Boolean get() = fullscreenMode != VideoGeometry.Fullscreen.OFF
+    private var lastLandscape = false
     private var showFullscreenActions = true
     private var pipVisible = false
     private var displayMode = 0 // full frame, upper half, lower half; never zoom
-    private var videoAspect = 0.0
+    private var videoGeometry: VideoGeometry.Aspect? = null
+    private val videoAspect: Double get() = videoGeometry?.value ?: 0.0
+    private var geometryRetry: Runnable? = null
+    private var vlcTexture: TextureView? = null
+    private var vlcTextureListener: View.OnLayoutChangeListener? = null
     private var identifying = false
     private var identityThread: Thread? = null
     private var recordPending = false
@@ -417,7 +424,14 @@ class PlayerActivity : AppCompatActivity() {
         val alternatives = intent.getStringArrayExtra("alts")?.toList().orEmpty()
         urls = (listOf(main) + alternatives).filter { CameraStreamProtocol.isSupported(it) }.distinct()
         displayMode = (savedInstanceState?.getInt("displayMode") ?: 0).coerceIn(0, 2)
-        fullscreen = savedInstanceState?.getBoolean("fullscreen") ?: false
+        lastLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        fullscreenMode = savedInstanceState?.getString("fullscreenMode")?.let { saved ->
+            VideoGeometry.Fullscreen.entries.firstOrNull { it.name == saved }
+        } ?: when {
+            savedInstanceState?.getBoolean("fullscreen") == true -> VideoGeometry.Fullscreen.MANUAL
+            savedInstanceState != null -> VideoGeometry.Fullscreen.OFF
+            else -> VideoGeometry.afterRotation(VideoGeometry.Fullscreen.OFF, lastLandscape)
+        }
         findViewById<View>(R.id.btnRetry).setOnClickListener { event("Nova tentativa manual"); resetAndPlay(Engine.VLC) }
         findViewById<View>(R.id.btnCopyRtspDiagnostic).setOnClickListener { showDiagnosticReport() }
         findViewById<View>(R.id.btnRecoverRtsp).apply {
@@ -455,13 +469,15 @@ class PlayerActivity : AppCompatActivity() {
         applyFullscreen()
     }
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putBoolean("fullscreen", fullscreen); outState.putInt("displayMode", displayMode)
+        outState.putString("fullscreenMode", fullscreenMode.name)
+        outState.putInt("displayMode", displayMode)
         super.onSaveInstanceState(outState)
     }
     override fun onPictureInPictureModeChanged(inPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig)
         pipVisible = inPictureInPictureMode
         event(if (pipVisible) "PiP ativado" else "PiP encerrado")
+        if (!pipVisible) handleScreenRotation(newConfig)
         applyFullscreen()
     }
 
@@ -493,7 +509,19 @@ class PlayerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         configureControls()
+        if (!pipVisible && !isInPictureInPictureMode) handleScreenRotation(newConfig)
         applyFullscreen()
+    }
+
+    private fun handleScreenRotation(config: Configuration) {
+        if (config.orientation != Configuration.ORIENTATION_LANDSCAPE &&
+            config.orientation != Configuration.ORIENTATION_PORTRAIT) return
+        val landscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (landscape == lastLandscape) return
+        lastLandscape = landscape
+        fullscreenMode = VideoGeometry.afterRotation(fullscreenMode, landscape)
+        showFullscreenActions = true
+        event("Rotação: ${if (landscape) "horizontal" else "vertical"} · tela cheia=$fullscreen · modo de imagem=$displayMode")
     }
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.add(0, 2011, 1, "Capturar JPEG")
@@ -658,13 +686,14 @@ class PlayerActivity : AppCompatActivity() {
                 vlcPlayer?.let { readVlcVideoSize(it) }
                 applyDisplayMode()
                 event("Exibição selecionada: ${choices[which]} · proporção $videoAspect")
-                if (which != 0 && videoAspect == 0.0) requestVlcVideoSize()
+                if (which != 0) requestVlcVideoSize()
             }.show()
     }
 
     private fun setFullscreen(enabled: Boolean) {
-        if (fullscreen == enabled) return
-        fullscreen = enabled
+        val target = if (enabled) VideoGeometry.Fullscreen.MANUAL else VideoGeometry.Fullscreen.OFF
+        if (fullscreenMode == target) return
+        fullscreenMode = target
         event(if (enabled) "Tela cheia ativada" else "Tela cheia encerrada")
         showFullscreenActions = true
         applyFullscreen()
@@ -678,7 +707,12 @@ class PlayerActivity : AppCompatActivity() {
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else if (!pipVisible) controller.show(WindowInsetsCompat.Type.systemBars())
         updateViewerChrome()
-        viewport.post { applyDisplayMode() }
+        viewport.post {
+            if (isDestroyed) return@post
+            applyDisplayMode()
+            syncVlcWindowSize()
+            if (videoReady) requestVlcVideoSize()
+        }
     }
 
     private fun updateViewerChrome() {
@@ -693,8 +727,8 @@ class PlayerActivity : AppCompatActivity() {
         if (displayMode > 0) lensBadge.setText(
             if (displayMode == 1) R.string.player_lens_upper else R.string.player_lens_lower
         )
-        cropNotice.visibility = if (waitingForCrop) View.VISIBLE else View.GONE
-        if (waitingForCrop && !lastCropFallback) event("Recorte aguardando dimensões da faixa")
+        cropNotice.visibility = if (waitingForCrop && !pipVisible) View.VISIBLE else View.GONE
+        if (waitingForCrop && !lastCropFallback) event("Imagem inteira mantida: recorte aguardando dimensões da faixa")
         lastCropFallback = waitingForCrop
     }
 
@@ -712,36 +746,75 @@ class PlayerActivity : AppCompatActivity() {
         }
         supportActionBar?.subtitle = if (landscape) null else getString(R.string.monitoramento_vivo)
     }
-    private fun setVideoAspect(width: Int, height: Int, pixelRatio: Double = 1.0, rotated: Boolean = false) {
-        if (width <= 0 || height <= 0 || pixelRatio <= 0 || !pixelRatio.isFinite()) return
-        val raw = width.toDouble() * pixelRatio / height
-        val aspect = if (rotated) 1.0 / raw else raw
-        if (kotlin.math.abs(aspect - videoAspect) > 0.0001) { videoAspect = aspect; applyDisplayMode() }
-    }
-    private fun readVlcVideoSize(player: VlcMediaPlayer) {
-        runCatching {
-            val track = player.currentVideoTrack ?: return
-            val sar = if (track.sarNum > 0 && track.sarDen > 0) track.sarNum.toDouble()/track.sarDen else 1.0
-            setVideoAspect(track.width, track.height, sar, track.orientation >= 4)
+    private fun setVideoAspect(width: Int, height: Int, pixelRatio: Double = 1.0, rotated: Boolean = false,
+        source: VideoGeometry.Source = VideoGeometry.Source.ACTIVE_TRACK): Boolean {
+        val aspect = VideoGeometry.sourceAspect(width, height, pixelRatio, rotated) ?: return false
+        val previous = videoGeometry
+        if (previous != null && !previous.accepts(source)) return false
+        val geometryChanged = previous == null || kotlin.math.abs(aspect - previous.value) > 0.0001
+        if (geometryChanged || previous?.source != source) {
+            videoGeometry = VideoGeometry.Aspect(aspect, source)
+            event("Dimensões de vídeo: ${width}×$height · fonte=${source.name}")
+            if (geometryChanged) applyDisplayMode()
         }
+        return true
     }
+
+    private fun useVlcTrack(track: IMedia.VideoTrack, source: VideoGeometry.Source): Boolean {
+        val sar = if (track.sarNum > 0 && track.sarDen > 0) track.sarNum.toDouble() / track.sarDen else 1.0
+        return setVideoAspect(track.width, track.height, sar, track.orientation >= 4, source)
+    }
+
+    private fun readVlcVideoSize(player: VlcMediaPlayer) {
+        if (player !== vlcPlayer) return
+        val activeTrack = runCatching { player.currentVideoTrack }.getOrNull()
+        if (activeTrack != null && useVlcTrack(activeTrack, VideoGeometry.Source.ACTIVE_TRACK)) return
+        if (!videoReady || videoGeometry?.source == VideoGeometry.Source.ACTIVE_TRACK) return
+        if (videoGeometry?.source != VideoGeometry.Source.MEDIA_TRACK) {
+            val fallback = runCatching {
+                val media = player.media ?: return@runCatching null
+                try {
+                    val tracks = (0 until media.trackCount.coerceIn(0, 64))
+                        .mapNotNull { media.getTrack(it) as? IMedia.VideoTrack }
+                    val selected = player.videoTrack
+                    if (selected >= 0) tracks.firstOrNull { it.id == selected } ?: tracks.singleOrNull()
+                    else tracks.singleOrNull()
+                } finally { media.release() }
+            }.getOrNull()
+            if (fallback != null && useVlcTrack(fallback, VideoGeometry.Source.MEDIA_TRACK)) return
+        }
+        if (videoGeometry != null || pipVisible || isInPictureInPictureMode) return
+        // VideoHelper assigns positive layout params from the decoded format.
+        // MATCH_PARENT and the window's own measured size are not source dimensions.
+        val fitted = vlcTexture?.takeIf { it.isAvailable }?.layoutParams ?: return
+        setVideoAspect(fitted.width, fitted.height, source = VideoGeometry.Source.RENDERED_LAYOUT)
+    }
+
     private fun requestVlcVideoSize() {
         val player = vlcPlayer ?: return
+        if (!active || geometryRetry != null || videoGeometry?.source == VideoGeometry.Source.ACTIVE_TRACK) return
         val current = generation
-        fun retry(remaining: Int) {
-            if (!active || generation != current || vlcPlayer !== player || videoAspect > 0 || displayMode == 0) return
-            readVlcVideoSize(player)
-            if (videoAspect == 0.0 && remaining > 0)
-                mainHandler.postDelayed({ retry(remaining - 1) }, 250L)
+        val retry = object : Runnable {
+            private var remaining = 12
+            override fun run() {
+                if (geometryRetry !== this) return
+                if (active && generation == current && failedGeneration != current && vlcPlayer === player) {
+                    readVlcVideoSize(player)
+                    if (videoGeometry?.source != VideoGeometry.Source.ACTIVE_TRACK && remaining-- > 0) {
+                        mainHandler.postDelayed(this, 250L)
+                        return
+                    }
+                }
+                geometryRetry = null
+            }
         }
-        retry(8)
+        geometryRetry = retry
+        retry.run()
     }
 
     private fun syncVlcWindowSize() {
-        val width = videoContainer.width
-        val height = videoContainer.height
-        if (width > 0 && height > 0)
-            runCatching { vlcPlayer?.getVLCVout()?.setWindowSize(width, height) }
+        if (vlcView.width > 0 && vlcView.height > 0)
+            runCatching { vlcPlayer?.updateVideoSurfaces() }
     }
 
     private fun applyDisplayMode() {
@@ -849,6 +922,9 @@ class PlayerActivity : AppCompatActivity() {
         if (active) playCurrent()
     }
     private fun releasePlayers() {
+        geometryRetry?.let { mainHandler.removeCallbacks(it) }; geometryRetry = null
+        vlcTextureListener?.let { vlcTexture?.removeOnLayoutChangeListener(it) }
+        vlcTextureListener = null; vlcTexture = null
         exoView.player = null; exo?.let { runCatching { it.release() } }; exo = null
         vlcPlayer?.let { nativePlayer ->
             val session = recordingSession.takeIf { recordingPlayer === nativePlayer }
@@ -954,7 +1030,7 @@ class PlayerActivity : AppCompatActivity() {
         val url = urls.getOrNull(index)
         if (!media3RtspEnabled) engine = Engine.VLC
         val current = ++generation; failedGeneration = -1
-        releasePlayers(); videoReady = false; videoAspect = 0.0; applyDisplayMode(); errorBox.visibility = View.GONE
+        releasePlayers(); videoReady = false; videoGeometry = null; applyDisplayMode(); errorBox.visibility = View.GONE
         if (url == null) { event("Nenhum endereço de vídeo compatível disponível", failed = true); showFailure(); return }
         // Aplicar somente a escolha explícita do usuário a cada tentativa do player.
         selectRtspRoute()
@@ -1086,7 +1162,18 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             // TextureView participates in the normal View clip; SurfaceView could draw past it.
+            // The clipped video box can be taller than it is wide even in landscape.
+            // Use those actual bounds, not the device orientation, to size the VLC output.
+            next.setUseOrientationFromBounds(true)
+            findVideoOutput(vlcView, TextureView::class.java)?.let { texture ->
+                texture.layoutParams = texture.layoutParams.apply { width = -1; height = -1 }
+            }
             next.attachViews(vlcView, null, false, true)
+            vlcTexture = findVideoOutput(vlcView, TextureView::class.java)
+            vlcTextureListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                if (active && generation == current && videoReady && videoGeometry == null)
+                    readVlcVideoSize(next)
+            }.also { vlcTexture?.addOnLayoutChangeListener(it) }
             syncVlcWindowSize()
             // Live555 prefere as credenciais da URL quando há user-info. Alguns firmwares
             // falham nessa negociação: na segunda tentativa, remova APENAS o user-info

@@ -1,3 +1,5 @@
+**Novo em 1.4.88:** o visualizador IP entra em tela cheia ao girar para horizontal, preserva a lente e mantém a imagem inteira disponível se não puder determinar o recorte. Veja [validação do player RTSP](docs/VALIDATION_1_4_88.md).
+
 **Novo em 1.4.87:** corrigida a importação Python que interrompia o Build APK #84 antes de compilar. O empacotamento compacto do universal permanece. Veja [validação do preflight](docs/VALIDATION_1_4_87.md).
 
 **Novo em 1.4.86:** o Build APK #83 mostrou que o universal da 1.4.85 excedia 200 MiB. A nova versão compacta as bibliotecas nativas e bloqueia APK acima desse limite antes do upload. A Release continua com um único APK universal assinado. Veja [validação da correção](docs/VALIDATION_1_4_86.md).
@@ -30,7 +32,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.87 (versionCode 97)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.88 (versionCode 98)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

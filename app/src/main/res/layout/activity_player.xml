@@ -8,10 +8,11 @@
   </FrameLayout>
   </FrameLayout>
   <TextView android:id="@+id/cropNotice"
-      android:layout_width="match_parent" android:layout_height="match_parent"
-      android:background="#000000" android:gravity="center" android:padding="24dp"
-      android:text="@string/player_lens_size_pending" android:textColor="@color/player_text"
-      android:textSize="14sp" android:visibility="gone" android:accessibilityLiveRegion="polite" />
+      android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:layout_gravity="top|center_horizontal" android:layout_margin="12dp"
+      android:background="@drawable/player_badge" android:gravity="center" android:padding="9dp"
+      android:maxWidth="224dp" android:text="@string/player_lens_size_pending"
+      android:textColor="@color/player_text" android:textSize="12sp" android:visibility="gone" android:accessibilityLiveRegion="polite" />
   <TextView android:id="@+id/lensBadge"
       android:layout_width="wrap_content" android:layout_height="wrap_content"
       android:layout_gravity="top|center_horizontal" android:layout_margin="12dp"
