@@ -1,3 +1,11 @@
+## 1.4.80+90 — 2026-11-17
+
+- Formulário de câmera encontrado, manual e edição passam a compartilhar o bloco de acesso e o seletor RTSP.
+- Substituído o campo com dropdown e teclado por um resumo e um seletor com Automático, Ver sugestões e Digitar caminho. As sugestões mantêm os caminhos anteriores com rótulos mais claros.
+- URL completa continua aceita e oculta os campos separados de porta/caminho. Cadastro, URLs alternativas, login e seleção de melhor fluxo no teste continuam disponíveis.
+- Relatório real da câmera 209 mostra abertura na primeira tentativa TCP, cerca de 5 s até a primeira imagem. Não alterados player, cache, transporte, timeout nem gravação nesta versão.
+- Compilação Android e validação visual no aparelho continuam pendentes.
+
 ## 1.4.79+89 — 2026-11-02
 - Build APK 77: corrigido erro Kotlin em `PlayerActivity.kt` porque `PixelCopy` estava importado de `android.graphics`; a API correta é `android.view.PixelCopy`.
 - Acrescentado teste de regressão pré-build para garantir a importação correta e a chamada da captura JPEG.

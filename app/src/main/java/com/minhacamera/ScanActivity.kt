@@ -3,7 +3,6 @@ package com.minhacamera
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ListView
@@ -11,7 +10,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -191,24 +190,25 @@ class ScanActivity : AppCompatActivity() {
         val etName = view.findViewById<TextInputEditText>(R.id.etName)
         val etUser = view.findViewById<TextInputEditText>(R.id.etUser)
         val etPass = view.findViewById<TextInputEditText>(R.id.etPass)
-        val etPath = view.findViewById<MaterialAutoCompleteTextView>(R.id.etPath)
         val btnCopyPass = view.findViewById<MaterialButton>(R.id.btnCopyPass)
         val btnPastePass = view.findViewById<MaterialButton>(R.id.btnPastePass)
         etName.setText("Câmera ${f.ip.substringAfterLast('.')}")
         CameraFormUi.setupPasswordTools(this, etPass, btnCopyPass, btnPastePass)
-        CameraFormUi.setupPathSuggestions(this, etPath)
+        val path = CameraFormUi.setupPathSelector(view)
 
-        AlertDialog.Builder(this)
-            .setTitle(f.ip + (f.port?.let { ":$it" } ?: " (ONVIF)"))
+        view.findViewById<TextView>(R.id.tvInfo).text = f.ip + (f.port?.let { ":$it" } ?: " · ONVIF")
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.camera_form_configure)
             .setView(view)
             .setPositiveButton(R.string.testar_salvar) { _, _ ->
                 val name = etName.text?.toString()?.trim().orEmpty().ifEmpty { "Câmera ${f.ip}" }
                 val user = etUser.text?.toString()?.trim().orEmpty().ifEmpty { "admin" }
                 val pass = etPass.text?.toString().orEmpty()
-                testAndSave(f, name, user, pass, CameraFormUi.normalizePathChoice(etPath.text?.toString().orEmpty()))
+                testAndSave(f, name, user, pass, path())
             }
             .setNegativeButton(R.string.cancelar, null)
-            .show()
+            .create()
+        CameraFormUi.showCameraForm(dialog)
     }
 
     // ---------- Adicionar manualmente (IP da rede já pré-preenchido) ----------
@@ -219,24 +219,22 @@ class ScanActivity : AppCompatActivity() {
         val etPort = view.findViewById<TextInputEditText>(R.id.etPort)
         val etUser = view.findViewById<TextInputEditText>(R.id.etUser)
         val etPass = view.findViewById<TextInputEditText>(R.id.etPass)
-        val etPath = view.findViewById<MaterialAutoCompleteTextView>(R.id.etPath)
         val btnCopyPass = view.findViewById<MaterialButton>(R.id.btnCopyPass)
         val btnPastePass = view.findViewById<MaterialButton>(R.id.btnPastePass)
 
         etIp.setText(NetUtil.localPrefix(this) ?: "")
         etIp.setSelection(etIp.text?.length ?: 0)
         CameraFormUi.setupPasswordTools(this, etPass, btnCopyPass, btnPastePass)
-        CameraFormUi.setupPathSuggestions(this, etPath)
+        val path = CameraFormUi.setupPathSelector(view)
 
-        val dlg = AlertDialog.Builder(this)
+        CameraFormUi.adaptToAddress(view, etIp)
+        val dlg = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.adicionar_manual)
             .setView(view)
             .setPositiveButton(R.string.testar_salvar, null)
             .setNegativeButton(R.string.cancelar, null)
             .create()
-        dlg.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        dlg.show()
-        etIp.requestFocus()
+        CameraFormUi.showCameraForm(dlg)
 
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val ipText = etIp.text?.toString()?.trim().orEmpty()
@@ -266,7 +264,7 @@ class ScanActivity : AppCompatActivity() {
             testAndSave(
                 Found(ipText, linkedSetOf(port)),
                 name.ifEmpty { "Câmera ${ipText.substringAfterLast('.')}" },
-                user, pass, CameraFormUi.normalizePathChoice(etPath.text?.toString().orEmpty())
+                user, pass, path()
             )
         }
     }

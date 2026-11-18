@@ -32,7 +32,7 @@ import com.journeyapps.barcodescanner.BarcodeResult
 import com.journeyapps.barcodescanner.BarcodeView
 import com.journeyapps.barcodescanner.DefaultDecoderFactory
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 
 class MainActivity : AppCompatActivity() {
@@ -567,7 +567,6 @@ class MainActivity : AppCompatActivity() {
         val etPort = view.findViewById<TextInputEditText>(R.id.etPort)
         val etUser = view.findViewById<TextInputEditText>(R.id.etUser)
         val etPass = view.findViewById<TextInputEditText>(R.id.etPass)
-        val etPath = view.findViewById<MaterialAutoCompleteTextView>(R.id.etPath)
         val btnCopyPass = view.findViewById<MaterialButton>(R.id.btnCopyPass)
         val btnPastePass = view.findViewById<MaterialButton>(R.id.btnPastePass)
         val parsed = CameraFormUi.parseRtsp(c.url)
@@ -578,15 +577,16 @@ class MainActivity : AppCompatActivity() {
         etUser.setText(parsed.user.ifBlank { "admin" })
         etPass.setText(parsed.pass)
         CameraFormUi.setupPasswordTools(this, etPass, btnCopyPass, btnPastePass)
-        CameraFormUi.setupPathSuggestions(this, etPath, parsed.path)
+        val path = CameraFormUi.setupPathSelector(view, parsed.path, editing = true)
+        CameraFormUi.adaptToAddress(view, etIp)
 
-        val dlg = AlertDialog.Builder(this)
+        val dlg = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.editar_camera)
             .setView(view)
             .setPositiveButton(R.string.salvar, null)
             .setNegativeButton(R.string.cancelar, null)
             .create()
-        dlg.show()
+        CameraFormUi.showCameraForm(dlg)
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val target = etIp.text?.toString()?.trim().orEmpty()
             val name = etName.text?.toString()?.trim().orEmpty().ifEmpty { c.name }
@@ -606,8 +606,7 @@ class MainActivity : AppCompatActivity() {
             val port = etPort.text?.toString()?.trim()?.toIntOrNull() ?: 554
             val user = etUser.text?.toString()?.trim().orEmpty().ifEmpty { "admin" }
             val pass = etPass.text?.toString().orEmpty()
-            val pathChoice = etPath.text?.toString().orEmpty()
-            val url = CameraFormUi.buildRtspUrl(target, port, user, pass, pathChoice)
+            val url = CameraFormUi.buildRtspUrl(target, port, user, pass, path())
             cams[pos] = Camera(name, url, if (url == c.url) c.alts else emptyList())
             store.save(cams)
             refresh()

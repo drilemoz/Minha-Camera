@@ -1,3 +1,10 @@
+# Minha Câmera 1.4.80 (versionCode 90)
+
+- **Configurar câmera:** usuário, senha e as ações de copiar e colar ficam em uma seção própria.
+- **Caminho RTSP:** seleção separada, sugestões identificadas por família e número do fluxo, campo manual somente quando escolhido. Na edição, “Sem caminho específico” salva a URL sem sufixo e não faz descoberta.
+- **Abertura RTSP:** o relato da 1.4.79 mostrou cerca de 5 s em TCP sem falhas ou fallback. Nesta versão, o funcionamento do player permanece intacto.
+- Build Android e teste em aparelho pendentes.
+
 # Minha Câmera 1.4.79 (versionCode 89)
 - Build APK 77: erro de compilação da captura JPEG corrigido, usando `android.view.PixelCopy`.
 - Adicionado teste preventivo à etapa de verificação do workflow.

@@ -5,28 +5,33 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.ClipDescription
 import android.os.Build
-import android.widget.ArrayAdapter
-import android.widget.AutoCompleteTextView
+import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.core.widget.doAfterTextChanged
 import android.widget.Toast
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 
 object CameraFormUi {
     const val DEFAULT_PATH = "Default"
-    val pathSuggestions = listOf(
-        DEFAULT_PATH,
-        "/stream1",
-        "/stream2",
-        "/onvif1",
-        "/onvif2",
-        "/live/ch00_0",
-        "/live/ch00_1",
-        "/Streaming/Channels/101",
-        "/Streaming/Channels/102",
-        "/h264Preview_01_main",
-        "/h264Preview_01_sub",
-        "/cam/realmonitor?channel=1&subtype=0",
-        "/cam/realmonitor?channel=1&subtype=1"
+    private data class Preset(val family: String, val stream: Int, val path: String)
+    private val pathSuggestions = listOf(
+        Preset("Stream", 1, "/stream1"),
+        Preset("Stream", 2, "/stream2"),
+        Preset("ONVIF", 1, "/onvif1"),
+        Preset("ONVIF", 2, "/onvif2"),
+        Preset("Live", 1, "/live/ch00_0"),
+        Preset("Live", 2, "/live/ch00_1"),
+        Preset("Streaming Channels", 1, "/Streaming/Channels/101"),
+        Preset("Streaming Channels", 2, "/Streaming/Channels/102"),
+        Preset("H264 Preview", 1, "/h264Preview_01_main"),
+        Preset("H264 Preview", 2, "/h264Preview_01_sub"),
+        Preset("Realmonitor", 1, "/cam/realmonitor?channel=1&subtype=0"),
+        Preset("Realmonitor", 2, "/cam/realmonitor?channel=1&subtype=1")
     )
 
     data class ParsedRtsp(
@@ -37,17 +42,103 @@ object CameraFormUi {
         val path: String
     )
 
-    fun setupPathSuggestions(
-        context: Context,
-        pathView: AutoCompleteTextView,
-        initialValue: String = DEFAULT_PATH
-    ) {
-        pathView.setAdapter(ArrayAdapter(context, R.layout.item_rtsp_path, pathSuggestions))
-        pathView.setText(initialValue.ifBlank { DEFAULT_PATH }, false)
-        pathView.threshold = 0
-        // Lista completa também ao tocar no campo, sem exigir digitação prévia.
-        pathView.setOnClickListener { pathView.showDropDown() }
+    fun showCameraForm(dialog: AlertDialog) {
+        dialog.window?.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
+        dialog.show()
+    }
 
+    /** A URL completa já define a porta e o caminho. Mantém os campos de login disponíveis. */
+    fun adaptToAddress(form: View, input: TextInputEditText) {
+        fun update(value: CharSequence?) {
+            val visibility = if (CameraStreamProtocol.isSupported(value?.toString()?.trim().orEmpty()))
+                View.GONE else View.VISIBLE
+            form.findViewById<View>(R.id.cameraPortBox).visibility = visibility
+            form.findViewById<View>(R.id.rtspPathCard).visibility = visibility
+        }
+        input.doAfterTextChanged { update(it) }
+        update(input.text)
+    }
+
+    fun setupPathSelector(
+        form: View,
+        initialValue: String = DEFAULT_PATH,
+        editing: Boolean = false
+    ): () -> String {
+        val context = form.context
+        val summary = form.findViewById<TextView>(R.id.rtspPathSummary)
+        val detail = form.findViewById<TextView>(R.id.rtspPathDetail)
+        val customBox = form.findViewById<View>(R.id.rtspCustomPathBox)
+        val customField = form.findViewById<TextInputEditText>(R.id.rtspCustomPath)
+        val choose = form.findViewById<MaterialButton>(R.id.btnRtspPath)
+        var selected = normalizePathChoice(initialValue)
+        var manual = false
+
+        fun render() {
+            customBox.visibility = if (manual) View.VISIBLE else View.GONE
+            val preset = pathSuggestions.firstOrNull { it.path == selected }
+            summary.text = when {
+                manual -> context.getText(R.string.rtsp_form_custom_title)
+                selected.isEmpty() -> context.getText(
+                    if (editing) R.string.rtsp_form_no_path else R.string.rtsp_form_pick_auto
+                )
+                preset != null -> context.getString(R.string.rtsp_form_preset_label, preset.family, preset.stream)
+                else -> selected.substringBefore('?') + if ('?' in selected) "?…" else ""
+            }
+            detail.text = when {
+                manual -> context.getText(R.string.rtsp_form_custom_detail)
+                selected.isEmpty() -> context.getText(
+                    if (editing) R.string.rtsp_form_auto_edit_detail else R.string.rtsp_form_auto_add_detail
+                )
+                preset != null -> preset.path
+                else -> context.getText(R.string.rtsp_form_exact_detail)
+            }
+        }
+
+        fun select(path: String) {
+            selected = path
+            manual = false
+            render()
+        }
+
+        choose.setOnClickListener {
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(choose.windowToken, 0)
+            customField.clearFocus()
+            val items = arrayOf(
+                context.getString(if (editing) R.string.rtsp_form_no_path else R.string.rtsp_form_pick_auto),
+                context.getString(R.string.rtsp_form_suggestions),
+                context.getString(R.string.rtsp_form_custom_title)
+            )
+            MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.rtsp_form_choose)
+                .setItems(items) { _, which ->
+                    when (which) {
+                        0 -> select("")
+                        1 -> {
+                            val labels = pathSuggestions.map {
+                                context.getString(R.string.rtsp_form_preset_row, it.family, it.stream, it.path)
+                            }.toTypedArray()
+                            MaterialAlertDialogBuilder(context)
+                                .setTitle(R.string.rtsp_form_suggestions)
+                                .setItems(labels) { _, index -> select(pathSuggestions[index].path) }
+                                .setNegativeButton(R.string.cancelar, null)
+                                .show()
+                        }
+                        2 -> {
+                            if (!manual) customField.setText(selected)
+                            manual = true
+                            render()
+                        }
+                    }
+                }
+                .setNegativeButton(R.string.cancelar, null)
+                .show()
+        }
+        render()
+        return { if (manual) normalizePathChoice(customField.text?.toString().orEmpty()) else selected }
     }
 
     fun setupPasswordTools(
