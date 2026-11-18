@@ -24,7 +24,8 @@ class CameraReportDialog(
     initialText: String,
     private val export: (String) -> Unit,
     private val subtitle: String = "Diagnóstico local • sem senhas ou tokens",
-    private val toggleInvestigation: (() -> Unit)? = null
+    private val toggleInvestigation: (() -> Unit)? = null,
+    private val snapshotProvider: (() -> String)? = null
 ) {
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density + 0.5f).toInt()
     private val body = TextView(activity).apply {
@@ -103,10 +104,10 @@ class CameraReportDialog(
         action("Fechar", primary = false, neutral = true) { dialog.dismiss() }
         action("Copiar", primary = true) {
             val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico Minha Câmera", body.text))
+            clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico Minha Câmera", snapshotProvider?.invoke() ?: body.text))
             Toast.makeText(activity, "Relatório copiado", Toast.LENGTH_SHORT).show()
         }
-        action("Exportar", primary = false) { export(body.text.toString()) }
+        action("Exportar", primary = false) { export(snapshotProvider?.invoke() ?: body.text.toString()) }
         container.addView(actions)
         if (toggleInvestigation != null) {
             val investigation = MaterialButton(activity).apply {

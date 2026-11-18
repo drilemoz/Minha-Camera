@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -318,6 +319,7 @@ class MainActivity : AppCompatActivity() {
         }
         startActivity(
             Intent(this, PlayerActivity::class.java)
+                .putExtra("selected_at_ms", SystemClock.elapsedRealtime())
                 .putExtra("name", camera.name)
                 .putExtra("url", camera.url)
                 .putExtra("alts", camera.alts.toTypedArray())

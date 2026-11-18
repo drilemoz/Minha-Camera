@@ -34,8 +34,11 @@ class CameraApplication : Application() {
                         cause = cause.cause
                     }
                 }.take(5500)
-                getSharedPreferences("private_crash_diagnostics", Context.MODE_PRIVATE)
-                    .edit().putString("last", summary).commit()
+                val editor = getSharedPreferences("private_crash_diagnostics", Context.MODE_PRIVATE)
+                    .edit().putString("last", summary)
+                if (summary.contains("com.minhacamera.PlayerActivity") || summary.contains("org.videolan.libvlc"))
+                    editor.putString("last_player_crash", PlaybackJournal.mask(summary))
+                editor.commit()
             } catch (_: Throwable) { /* não interfere no handler original */ }
             if (previous != null) previous.uncaughtException(thread, error)
             else { Process.killProcess(Process.myPid()); kotlin.system.exitProcess(10) }

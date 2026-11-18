@@ -25,6 +25,7 @@ import android.os.SystemClock
 import android.view.Gravity
 import android.util.Rational
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import androidx.media3.common.VideoSize
 import android.view.Menu
 import android.view.MenuItem
@@ -55,7 +56,9 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer as VlcMediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 import java.io.File
+import java.security.MessageDigest
 import java.util.Locale
+import java.util.UUID
 
 /** RTSP em LibVLC por padrão: Media3 1.3.1 pode encerrar o processo em resposta sem CSeq. */
 @OptIn(UnstableApi::class)
@@ -71,6 +74,12 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var vlcView: VLCVideoLayout
     private lateinit var loadingBox: View
     private lateinit var loadingDetail: TextView
+    private lateinit var loadingTitle: TextView
+    private lateinit var loadingBar: ProgressBar
+    private lateinit var loadingPercent: TextView
+    private lateinit var loadingElapsed: TextView
+    private lateinit var loadingEstimate: TextView
+    private lateinit var loadingAttempt: TextView
     private lateinit var errorBox: View
     private lateinit var errorText: TextView
     private lateinit var errorDetail: TextView
@@ -115,7 +124,28 @@ class PlayerActivity : AppCompatActivity() {
     private val finalizingSessions = mutableSetOf<String>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val failures = mutableListOf<String>()
-    private val diagnosticEvents = ArrayDeque<String>()
+    private val journal = PlaybackJournal()
+    private var sessionStartedMs = 0L
+    private var attemptStartedMs = 0L
+    private var firstFrameInSessionMs: Long? = null
+    private var attemptNumber = 0
+    private var attemptTimingKey: String? = null
+    private var attemptEstimateMs: Long? = null
+    private var currentStage = R.string.player_loading_opening
+    private var rebuffering = false
+    private var sawMedia = false
+    private var sawDecode = false
+    private var lastVlcBufferEvent = -1
+    private val journalId = UUID.randomUUID().toString()
+    private var lastGeometry = ""
+    private var lastCropFallback = false
+    private val timingPrefs by lazy { getSharedPreferences("rtsp_first_frame", MODE_PRIVATE) }
+    private val journalPrefs by lazy { getSharedPreferences("rtsp_session_journal", MODE_PRIVATE) }
+    private var reportRefreshScheduled = false
+    private val refreshDiagnostic = Runnable {
+        reportRefreshScheduled = false
+        diagnosticDialog?.takeIf { it.isShowing }?.update(reportSnapshot())
+    }
     private var reportDialog: CameraReportDialog? = null
     private var diagnosticDialog: CameraReportDialog? = null
     private var rtspAnalysis = "Diagnóstico ainda não concluído"
@@ -199,20 +229,79 @@ class PlayerActivity : AppCompatActivity() {
             }.show()
     }
 
-    private fun vlcStatsSnapshot(player: VlcMediaPlayer): String = try {
+    private data class VlcCounters(val bytes: Long, val demux: Long, val decoded: Long, val shown: Long, val lost: Long) {
+        fun describe() = "bytes=$bytes; demux=$demux; decodificados=$decoded; exibidos=$shown; perdas=$lost"
+    }
+
+    private fun readVlcCounters(player: VlcMediaPlayer): VlcCounters? = try {
         val media = player.media
         try {
-            val stats = media?.stats
-            if (stats == null) "Sem estatísticas do VLC"
-            else "bytes=${stats.readBytes}; demux=${stats.demuxReadBytes}; " +
-                "decodificados=${stats.decodedVideo}; exibidos=${stats.displayedPictures}; perdas=${stats.lostPictures}"
+            media?.stats?.let {
+                VlcCounters(it.readBytes.toLong(), it.demuxReadBytes.toLong(), it.decodedVideo.toLong(),
+                    it.displayedPictures.toLong(), it.lostPictures.toLong())
+            }
         } finally { media?.release() }
-    } catch (_: Exception) { "Estatísticas nativas indisponíveis" }
+    } catch (_: Exception) { null }
 
-    private fun event(message: String) {
-        val stamp = SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(Date())
-        diagnosticEvents.addLast("$stamp · ${maskCredentials(message)}")
-        while (diagnosticEvents.size > 80) diagnosticEvents.removeFirst()
+    private fun vlcStatsSnapshot(player: VlcMediaPlayer): String =
+        readVlcCounters(player)?.describe() ?: "Estatísticas nativas indisponíveis"
+
+    private fun event(message: String, failed: Boolean = false) {
+        journal.append(SystemClock.elapsedRealtime() - sessionStartedMs, message, failed)
+        // Only bounded, sanitized events; no video frames, tokens, or file names are persisted.
+        val key = when (journalId) {
+            journalPrefs.getString("active_id", null) -> "latest"
+            journalPrefs.getString("previous_id", null) -> "previous"
+            else -> null
+        }
+        if (key != null) journalPrefs.edit().putString(key, journal.entries().joinToString("\n")).apply()
+        if (diagnosticDialog?.isShowing == true && !reportRefreshScheduled) {
+            reportRefreshScheduled = true
+            mainHandler.postDelayed(refreshDiagnostic, 350L)
+        }
+    }
+
+    private fun beginJournal(savedInstanceState: Bundle?) {
+        val now = SystemClock.elapsedRealtime()
+        val selected = intent.getLongExtra("selected_at_ms", -1L)
+        sessionStartedMs = if (savedInstanceState == null && selected >= 0L && now - selected in 0..10_000L) selected else now
+        journalPrefs.edit().putString("previous", journalPrefs.getString("latest", ""))
+            .putString("previous_id", journalPrefs.getString("active_id", null))
+            .putString("active_id", journalId).remove("latest").apply()
+        event(if (sessionStartedMs == selected) "Câmera selecionada na lista" else "Visualizador retomado")
+    }
+
+    private fun configureAttemptTiming(url: String) {
+        attemptStartedMs = SystemClock.elapsedRealtime()
+        attemptNumber++
+        sawMedia = false; sawDecode = false; lastVlcBufferEvent = -1
+        rebuffering = false
+        currentStage = R.string.player_loading_opening
+        attemptTimingKey = null
+        attemptEstimateMs = null
+        val uri = Uri.parse(url)
+        val host = uri.host ?: return
+        // Different cameras/routes do not share estimates. Credentials and URL parameters are excluded.
+        val fingerprint = "${uri.scheme}|$host|${uri.port}|${uri.encodedPath}|$index|$engine|$rtspTransport|$rtspOptionsOnly|$useWifiBinding"
+        val key = MessageDigest.getInstance("SHA-256").digest(fingerprint.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        attemptTimingKey = key
+        attemptEstimateMs = PlaybackTiming.estimate(timingSamples(key))
+    }
+
+    private fun timingSamples(key: String): List<Long> =
+        timingPrefs.getString(key, "").orEmpty().substringAfter('|', "")
+            .split(',').mapNotNull { it.toLongOrNull() }
+
+    private fun rememberFirstFrame(elapsedMs: Long) {
+        val key = attemptTimingKey ?: return
+        val samples = PlaybackTiming.addSample(timingSamples(key), elapsedMs)
+        if (elapsedMs !in 1..PlaybackTiming.ATTEMPT_LIMIT_MS || samples.isEmpty()) return
+        val editor = timingPrefs.edit()
+        val old = timingPrefs.all.filterKeys { it != key }.entries
+            .sortedBy { (it.value as? String)?.substringBefore('|')?.toLongOrNull() ?: 0L }
+        old.take((old.size - 39).coerceAtLeast(0)).forEach { editor.remove(it.key) }
+        editor.putString(key, "${System.currentTimeMillis()}|${samples.joinToString(",")}").apply()
     }
 
     private fun exportReport(report: String) {
@@ -224,8 +313,9 @@ class PlayerActivity : AppCompatActivity() {
     private fun safeReportPath(url: String): String {
         if (!CameraStreamProtocol.isRtsp(url)) return "/[caminho protegido]"
         val path = Uri.parse(url).encodedPath.orEmpty().ifEmpty { "/" }
-        val hasSensitiveParameter = Regex("(?i)(?:password|passwd|pass|pwd|token|secret|key|auth|user)=").containsMatchIn(path)
-        return if (hasSensitiveParameter || path.length > 120) "/[caminho protegido]" else path
+        // Custom paths may contain access tokens even without a query string or a key=value separator.
+        val known = RtspProbe.PATHS.any { it.substringBefore('?') == path }
+        return if (path == "/" || known) path else "/[caminho protegido]"
     }
 
     private fun reportSnapshot(): String {
@@ -234,7 +324,17 @@ class PlayerActivity : AppCompatActivity() {
             "Fluxo ${i + 1}: ${CameraStreamProtocol.description(address)} · ${u.host ?: "?"}:${u.port.takeIf { it > 0 } ?: CameraStreamProtocol.defaultPort(address)}${safeReportPath(address)}"
         }
         val lines = mutableListOf(
-            "Minha Câmera · Fluxos IP",
+            "Minha Câmera · Diagnóstico do visualizador IP",
+            "Resumo: tentativa $attemptNumber · ${journal.failures} ocorrência(s) de erro/falha",
+            "Primeira imagem nesta sessão: ${firstFrameInSessionMs?.let { "$it ms" } ?: "ainda não exibida"}",
+            "Tela cheia: ${if (fullscreen) "sim" else "não"} · PiP: ${if (pipVisible) "sim" else "não"}",
+            "Gravação: ${when {
+                stoppingRecording -> "encerrando"
+                recordingConfirmed -> "em andamento"
+                recordingSession != null || recordPending -> "aguardando confirmação"
+                finalizingCount > 0 -> "salvando"
+                else -> "inativa"
+            }}",
             "Android ${Build.VERSION.RELEASE} · SDK ${Build.VERSION.SDK_INT}",
             "App: ${packageManager.getPackageInfo(packageName, 0).versionName} · LibVLC 3.7.7",
             "Motor: ${engine.name} · protocolo: ${CameraStreamProtocol.description(urls.getOrNull(index).orEmpty())} · transporte: ${if (CameraStreamProtocol.isRtsp(urls.getOrNull(index).orEmpty())) rtspTransport.name else "padrão nativo"}",
@@ -252,7 +352,17 @@ class PlayerActivity : AppCompatActivity() {
         lines.add("\nAnálise do protocolo")
         lines.add(rtspAnalysis)
         lines.add("\nEventos desta sessão")
-        lines.addAll(diagnosticEvents)
+        lines.addAll(journal.entries())
+        val previousSession = journalPrefs.getString("previous", "").orEmpty()
+        if (previousSession.isNotBlank()) {
+            lines.add("\nSessão anterior neste aparelho")
+            lines.add(previousSession)
+        }
+        getSharedPreferences("private_crash_diagnostics", MODE_PRIVATE)
+            .getString("last_player_crash", null)?.let {
+                lines.add("\nÚltima falha não tratada do visualizador (Java/Kotlin)")
+                lines.add(it)
+            }
         lines.add("\nObservação: uma porta TCP aberta não comprova serviço RTSP.")
         return maskCredentials(lines.joinToString("\n"))
     }
@@ -261,7 +371,10 @@ class PlayerActivity : AppCompatActivity() {
         return CameraReportDialog(this, title, maskCredentials(report), ::exportReport).show().also { reportDialog = it }
     }
     private fun showDiagnosticReport() {
-        diagnosticDialog = showReport("Diagnóstico da conexão", reportSnapshot())
+        event("Painel de diagnóstico aberto")
+        diagnosticDialog = CameraReportDialog(this, "Diagnóstico da câmera", reportSnapshot(),
+            ::exportReport, subtitle = "Sessão atual e anterior · sem senhas ou tokens",
+            snapshotProvider = ::reportSnapshot).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -282,6 +395,12 @@ class PlayerActivity : AppCompatActivity() {
         vlcView = findViewById(R.id.vlcView)
         loadingBox = findViewById(R.id.loadingBox)
         loadingDetail = findViewById(R.id.loadingDetail)
+        loadingTitle = findViewById(R.id.loadingTitle)
+        loadingBar = findViewById(R.id.progress)
+        loadingPercent = findViewById(R.id.loadingPercent)
+        loadingElapsed = findViewById(R.id.loadingElapsed)
+        loadingEstimate = findViewById(R.id.loadingEstimate)
+        loadingAttempt = findViewById(R.id.loadingAttempt)
         errorBox = findViewById(R.id.errorBox)
         errorText = findViewById(R.id.errorText)
         errorDetail = findViewById(R.id.errorDetail)
@@ -299,15 +418,18 @@ class PlayerActivity : AppCompatActivity() {
         urls = (listOf(main) + alternatives).filter { CameraStreamProtocol.isSupported(it) }.distinct()
         displayMode = (savedInstanceState?.getInt("displayMode") ?: 0).coerceIn(0, 2)
         fullscreen = savedInstanceState?.getBoolean("fullscreen") ?: false
-        findViewById<View>(R.id.btnRetry).setOnClickListener { resetAndPlay(Engine.VLC) }
+        findViewById<View>(R.id.btnRetry).setOnClickListener { event("Nova tentativa manual"); resetAndPlay(Engine.VLC) }
         findViewById<View>(R.id.btnCopyRtspDiagnostic).setOnClickListener { showDiagnosticReport() }
         findViewById<View>(R.id.btnRecoverRtsp).apply {
             visibility = if (urls.any { CameraStreamProtocol.isRtsp(it) }) View.VISIBLE else View.GONE
             setOnClickListener { recoverRtsp() }
         }
-        event("Visualizador iniciado; sessão local")
+        beginJournal(savedInstanceState)
+        event("Visualizador iniciado · ${urls.size} fluxo(s) cadastrado(s)")
+        findViewById<View>(R.id.btnLoadingDiagnostic).setOnClickListener { showDiagnosticReport() }
+        findViewById<View>(R.id.btnFullscreenDiagnostic).setOnClickListener { showDiagnosticReport() }
         recordButton.setOnClickListener { onRecordClick() }
-        findViewById<View>(R.id.btnRecordings).setOnClickListener { startActivity(Intent(this, RecordingsActivity::class.java)) }
+        findViewById<View>(R.id.btnRecordings).setOnClickListener { event("Lista de gravações aberta"); startActivity(Intent(this, RecordingsActivity::class.java)) }
         findViewById<View>(R.id.btnDisplay).setOnClickListener { showDisplayOptions() }
         findViewById<View>(R.id.btnFullscreenImage).setOnClickListener { showDisplayOptions() }
         findViewById<View>(R.id.btnFullscreenExit).setOnClickListener { setFullscreen(false) }
@@ -323,6 +445,7 @@ class PlayerActivity : AppCompatActivity() {
             if (right-left != oldRight-oldLeft || bottom-top != oldBottom-oldTop) syncVlcWindowSize()
         }
         viewport.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (right-left != oldRight-oldLeft) resizeLoadingCard(right - left)
             if (right-left != oldRight-oldLeft || bottom-top != oldBottom-oldTop) applyDisplayMode()
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -338,15 +461,19 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(inPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig)
         pipVisible = inPictureInPictureMode
+        event(if (pipVisible) "PiP ativado" else "PiP encerrado")
         applyFullscreen()
     }
 
     private fun enterPip() {
+        event("PiP solicitado")
         if (!PipSupport.available(this)) {
+            event("PiP indisponível no Android", failed = true)
             Toast.makeText(this, R.string.pip_unavailable, Toast.LENGTH_LONG).show()
             return
         }
         if (!videoReady || !active) {
+            event("PiP não aberto: sem vídeo disponível")
             Toast.makeText(this, R.string.pip_wait_for_video, Toast.LENGTH_SHORT).show()
             return
         }
@@ -357,8 +484,10 @@ class PlayerActivity : AppCompatActivity() {
         val aspect = VideoGeometry.displayedAspect(videoAspect, displayMode != 0)
         val ratio = if (aspect != null && aspect in 0.43..2.30)
             Rational((aspect * 1000).toInt().coerceAtLeast(1), 1000) else Rational(16, 9)
-        if (!PipSupport.enter(this, if (displayMode != 0 && aspect != null) videoClip else viewport, ratio))
+        if (!PipSupport.enter(this, if (displayMode != 0 && aspect != null) videoClip else viewport, ratio)) {
+            event("Android não abriu o PiP", failed = true)
             Toast.makeText(this, R.string.pip_unavailable, Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -379,13 +508,14 @@ class PlayerActivity : AppCompatActivity() {
         menu.add(0, 2009, 7, "Testar outra rota de rede")
         menu.add(0, 2006, 0, "Diagnóstico").apply {
             setIcon(R.drawable.ic_ui_bug)
+            icon?.mutate()?.setTint(getColor(R.color.live_accent))
             setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
         }
         return true
     }
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         2011 -> { captureJpeg(); true }
-        2002 -> { resetAndPlay(Engine.VLC); true }
+        2002 -> { event("Reinício manual via LibVLC"); resetAndPlay(Engine.VLC); true }
         2003 -> { showReport("Informações da transmissão", reportSnapshot()); true }
         2004 -> { identifyCamera(); true }
         2005 -> { enterPip(); true }
@@ -398,7 +528,9 @@ class PlayerActivity : AppCompatActivity() {
     }
     /** Copia pixels da superfície decodificada, sem capturar controles nem inventar quadros. */
     private fun captureJpeg() {
+        event("Captura JPEG solicitada")
         if (!videoReady || Build.VERSION.SDK_INT < 29) {
+            event("Captura JPEG indisponível: vídeo ausente ou Android abaixo de 10")
             Toast.makeText(this, "Aguarde um quadro de vídeo (captura requer Android 10+)", Toast.LENGTH_LONG).show()
             return
         }
@@ -413,27 +545,37 @@ class PlayerActivity : AppCompatActivity() {
             } catch (_: OutOfMemoryError) { null }
               catch (_: Exception) { null }
             if (bitmap != null) saveJpeg(bitmap)
-            else Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
+            else {
+                event("Falha ao copiar o quadro da textura", failed = true)
+                Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
+            }
             return
         }
 
         val surface = findVideoOutput(root, SurfaceView::class.java)
         if (surface == null || surface.width <= 0 || surface.height <= 0) {
+            event("Captura JPEG falhou: superfície indisponível", failed = true)
             Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
             return
         }
         val bitmap = try { Bitmap.createBitmap(surface.width, surface.height, Bitmap.Config.ARGB_8888) }
-            catch (_: OutOfMemoryError) { Toast.makeText(this, "Memória insuficiente para captura", Toast.LENGTH_LONG).show(); return }
+            catch (_: OutOfMemoryError) {
+                event("Captura JPEG falhou: memória insuficiente", failed = true)
+                Toast.makeText(this, "Memória insuficiente para captura", Toast.LENGTH_LONG).show()
+                return
+            }
         val capturedGeneration = generation
         try {
             PixelCopy.request(surface, bitmap, { result ->
                 if (result == PixelCopy.SUCCESS && active && generation == capturedGeneration) saveJpeg(bitmap)
                 else {
+                    event("Captura JPEG não concluída · PixelCopy=$result", failed = true)
                     bitmap.recycle()
                     Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
                 }
             }, mainHandler)
         } catch (_: IllegalArgumentException) {
+            event("Captura JPEG falhou: argumento inválido do PixelCopy", failed = true)
             bitmap.recycle()
             Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
         }
@@ -473,8 +615,11 @@ class PlayerActivity : AppCompatActivity() {
                 saved = true
             } catch (_: Exception) { uri?.let { runCatching { contentResolver.delete(it, null, null) } } }
             finally { bitmap.recycle() }
-            runOnUiThread { if (!isDestroyed) Toast.makeText(this,
-                if (saved) "Imagem JPEG salva na galeria" else "Falha ao salvar JPEG", Toast.LENGTH_LONG).show() }
+            runOnUiThread {
+                event(if (saved) "JPEG salvo na galeria" else "Falha ao salvar JPEG na galeria", failed = !saved)
+                if (!isDestroyed) Toast.makeText(this,
+                    if (saved) "Imagem JPEG salva na galeria" else "Falha ao salvar JPEG", Toast.LENGTH_LONG).show()
+            }
         }.start()
     }
 
@@ -484,12 +629,14 @@ class PlayerActivity : AppCompatActivity() {
     }
     override fun onStart() {
         super.onStart()
-        if (!active) { active = true; resetAndPlay(Engine.VLC) }
+        if (!active) { active = true; event("Visualizador em primeiro plano"); resetAndPlay(Engine.VLC) }
     }
     override fun onStop() {
         if (android.os.Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode) { super.onStop(); return }
+        event("Visualizador saiu do primeiro plano")
         active = false; recordPending = false; generation++
         mainHandler.removeCallbacksAndMessages(null)
+        reportRefreshScheduled = false
         releasePlayers()
         super.onStop()
     }
@@ -518,6 +665,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun setFullscreen(enabled: Boolean) {
         if (fullscreen == enabled) return
         fullscreen = enabled
+        event(if (enabled) "Tela cheia ativada" else "Tela cheia encerrada")
         showFullscreenActions = true
         applyFullscreen()
     }
@@ -546,6 +694,8 @@ class PlayerActivity : AppCompatActivity() {
             if (displayMode == 1) R.string.player_lens_upper else R.string.player_lens_lower
         )
         cropNotice.visibility = if (waitingForCrop) View.VISIBLE else View.GONE
+        if (waitingForCrop && !lastCropFallback) event("Recorte aguardando dimensões da faixa")
+        lastCropFallback = waitingForCrop
     }
 
     private fun configureControls() {
@@ -613,11 +763,15 @@ class PlayerActivity : AppCompatActivity() {
             videoContainer.layoutParams = params
         }
         videoContainer.translationY = frame?.videoTop ?: 0f
+        val geometry = if (frame != null) "${frame.width}×${frame.clipHeight} · modo $displayMode · tela cheia=$fullscreen · PiP=$pipVisible" else ""
+        if (geometry.isNotBlank() && geometry != lastGeometry) event("Área visível: $geometry")
+        lastGeometry = geometry
         exoView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         updateViewerChrome()
     }
     private fun identifyCamera() {
         if (identifying) return
+        event("Identificação de serviços solicitada")
         val uri = Uri.parse(urls.getOrNull(index) ?: return)
         val host = uri.host ?: return
         val auth = uri.encodedUserInfo.orEmpty()
@@ -644,6 +798,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun recoverRtsp() {
+        event("Recuperação de fluxo RTSP solicitada")
         if (urls.none { CameraStreamProtocol.isRtsp(it) }) {
             Toast.makeText(this, "Recuperação RTSP não se aplica a este endereço", Toast.LENGTH_LONG).show()
             return
@@ -683,6 +838,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun resetAndPlay(startEngine: Engine) {
+        attemptNumber = 0
         recordPending = false; index = 0; rtspTransport = RtspTransport.TCP; rtspOptionsOnly = false
         // Centraliza a política: nenhum botão/tentativa inicia Media3 RTSP nesta release.
         engine = if (media3RtspEnabled) startEngine else Engine.VLC
@@ -696,7 +852,12 @@ class PlayerActivity : AppCompatActivity() {
         exoView.player = null; exo?.let { runCatching { it.release() } }; exo = null
         vlcPlayer?.let { nativePlayer ->
             val session = recordingSession.takeIf { recordingPlayer === nativePlayer }
-            if (session != null) runCatching { nativePlayer.record(null) }
+            if (session != null) {
+                event("Gravação encerrada ao liberar o player")
+                runCatching { nativePlayer.record(null) }.onFailure {
+                    event("VLC falhou ao encerrar gravação na saída: ${causeSummary(it)}", failed = true)
+                }
+            }
             runCatching { nativePlayer.setEventListener(null) }
             // Synchronous stop closes native outputs before moving a completed file.
             runCatching { nativePlayer.stop() }
@@ -705,18 +866,73 @@ class PlayerActivity : AppCompatActivity() {
         }
         vlcPlayer = null; vlcCore?.let { runCatching { it.release() } }; vlcCore = null
     }
+    private fun resizeLoadingCard(width: Int) {
+        val density = resources.displayMetrics.density
+        val cardWidth = minOf((360 * density).toInt(), width - (32 * density).toInt())
+        if (cardWidth <= 0 || loadingBox.layoutParams.width == cardWidth) return
+        loadingBox.layoutParams = loadingBox.layoutParams.apply { this.width = cardWidth }
+    }
+
     private fun loading(detail: Int) {
-        loadingDetail.setText(detail); loadingBox.visibility = View.VISIBLE
+        if (videoReady && !rebuffering) {
+            rebuffering = true
+            event("Rebufferização iniciada")
+        }
+        loadingDetail.setText(if (rebuffering) detail else currentStage)
+        loadingTitle.setText(if (rebuffering) R.string.player_loading_resuming else R.string.player_loading_title)
+        loadingBox.visibility = View.VISIBLE
         engineText.setText(R.string.status_conectando)
+        renderLoadingPanel()
+    }
+
+    private fun renderLoadingPanel() {
+        if (loadingBox.visibility != View.VISIBLE) return
+        loadingBar.isIndeterminate = rebuffering
+        for (view in listOf(loadingPercent, loadingElapsed, loadingEstimate, loadingAttempt))
+            view.visibility = if (rebuffering) View.GONE else View.VISIBLE
+        if (rebuffering) return
+        val elapsed = (SystemClock.elapsedRealtime() - attemptStartedMs).coerceAtLeast(0L)
+        val timing = PlaybackTiming.progress(elapsed, attemptEstimateMs)
+        loadingBar.progress = timing.percentOfLimit
+        loadingPercent.text = getString(R.string.player_loading_percent, timing.percentOfLimit)
+        loadingElapsed.text = getString(R.string.player_loading_elapsed, elapsed / 1000.0)
+        loadingEstimate.text = when {
+            timing.remainingEstimateSeconds != null -> getString(R.string.player_loading_eta, timing.remainingEstimateSeconds)
+            timing.overdue -> getString(R.string.player_loading_over_eta)
+            else -> getString(R.string.player_loading_no_eta, PlaybackTiming.ATTEMPT_LIMIT_MS / 1000L)
+        }
+        val route = if (CameraStreamProtocol.isRtsp(urls.getOrNull(index).orEmpty())) rtspTransport.name
+            else getString(R.string.player_route_default)
+        loadingAttempt.text = getString(R.string.player_loading_attempt, attemptNumber, index + 1, urls.size, route)
+    }
+
+    private fun setConnectionStage(stage: Int) {
+        if (videoReady || currentStage == stage) return
+        currentStage = stage
+        loadingDetail.setText(stage)
+    }
+
+    private fun tickConnectionPanel(current: Int) {
+        if (!active || current != generation || videoReady || failedGeneration == current) return
+        renderLoadingPanel()
+        mainHandler.postDelayed({ tickConnectionPanel(current) }, 250L)
     }
     private fun videoAvailable() {
         val first = !videoReady
+        val resumed = rebuffering
+        rebuffering = false
+        if (first) loadingBar.progress = PlaybackTiming.progress(0, null, firstFrame = true).percentOfLimit
         videoReady = true; loadingBox.visibility = View.GONE; errorBox.visibility = View.GONE
+        if (resumed && !first) event("Rebufferização encerrada; vídeo retomado")
         engineText.setText(R.string.status_ao_vivo); updateRecordButton()
         if (first) {
             updateViewerChrome()
             requestVlcVideoSize()
-            event("Primeiro quadro de vídeo exibido")
+            val now = SystemClock.elapsedRealtime()
+            val elapsed = now - attemptStartedMs
+            if (firstFrameInSessionMs == null) firstFrameInSessionMs = now - sessionStartedMs
+            rememberFirstFrame(elapsed)
+            event("Primeiro quadro de vídeo exibido · $elapsed ms nesta tentativa")
             val recovered = pendingRecovered
             pendingRecovered = null
             if (index == 0 && recovered != null && urls.firstOrNull() == recovered.second) {
@@ -739,23 +955,26 @@ class PlayerActivity : AppCompatActivity() {
         if (!media3RtspEnabled) engine = Engine.VLC
         val current = ++generation; failedGeneration = -1
         releasePlayers(); videoReady = false; videoAspect = 0.0; applyDisplayMode(); errorBox.visibility = View.GONE
-        if (url == null) { event("Nenhum endereço de vídeo compatível disponível"); showFailure(); return }
+        if (url == null) { event("Nenhum endereço de vídeo compatível disponível", failed = true); showFailure(); return }
         // Aplicar somente a escolha explícita do usuário a cada tentativa do player.
         selectRtspRoute()
         val u = Uri.parse(url)
         val isRtsp = CameraStreamProtocol.isRtsp(url)
+        configureAttemptTiming(url)
         val attemptLabel = if (isRtsp)
             "${rtspTransport.name}, auth=${if (rtspOptionsOnly) "opções" else "URL"}"
         else "nativo"
-        event("Tentativa ${index + 1}/${urls.size} [${CameraStreamProtocol.description(url)}]: ${u.host ?: "?"}:${u.port.takeIf { it in 1..65535 } ?: CameraStreamProtocol.defaultPort(url)}${safeReportPath(url)} ($attemptLabel)")
-        loading(if (failures.isEmpty()) R.string.aguarde_imagem else R.string.conexao_alternativa)
+        event("Tentativa $attemptNumber · fluxo ${index + 1}/${urls.size} [${CameraStreamProtocol.description(url)}]: ${u.host ?: "?"}:${u.port.takeIf { it in 1..65535 } ?: CameraStreamProtocol.defaultPort(url)}${safeReportPath(url)} ($attemptLabel)")
+        if (attemptNumber > 1) currentStage = R.string.player_loading_retry
+        loading(currentStage)
+        tickConnectionPanel(current)
         exoView.visibility = if (engine == Engine.MEDIA3) View.VISIBLE else View.GONE
         vlcView.visibility = if (engine == Engine.VLC) View.VISIBLE else View.GONE
         updateRecordButton()
         mainHandler.postDelayed({
             if (active && generation == current && !videoReady) onAttemptFailed(
-                if (engine == Engine.MEDIA3) "Media3" else "LibVLC", "Timeout de 15 s aguardando a primeira imagem")
-        }, 15_000L)
+                if (engine == Engine.MEDIA3) "Media3" else "LibVLC", "Timeout de ${PlaybackTiming.ATTEMPT_LIMIT_MS / 1000} s aguardando a primeira imagem")
+        }, PlaybackTiming.ATTEMPT_LIMIT_MS)
         if (engine == Engine.MEDIA3) startMedia3(url, current) else startVlc(url, current)
     }
     private fun startMedia3(url: String, current: Int) {
@@ -812,22 +1031,45 @@ class PlayerActivity : AppCompatActivity() {
             next.setEventListener { event ->
                 // Recording close events must be handled even while leaving the screen.
                 val eventType = event.type
+                val bufferingPercent = if (eventType == VlcMediaPlayer.Event.Buffering) event.buffering else null
                 val eventRecording = if (eventType == VlcMediaPlayer.Event.RecordChanged) event.recording else false
                 runOnUiThread {
                     if (eventType == VlcMediaPlayer.Event.RecordChanged && recordingPlayer === next) {
                         val session = recordingSession
                         if (session != null) {
-                            if (eventRecording && !stoppingRecording) { recordingConfirmed = true; updateRecordButton(); tickRecording(session) }
-                            else if (!eventRecording) finishRecording(session)
+                            if (eventRecording && !stoppingRecording && !recordingConfirmed) {
+                                recordingConfirmed = true
+                                event("VLC confirmou início da gravação")
+                                updateRecordButton()
+                                tickRecording(session)
+                            } else if (!eventRecording) {
+                                if (!stoppingRecording)
+                                    event("VLC encerrou a gravação sem pedido de parada", failed = true)
+                                else event("VLC confirmou encerramento da gravação")
+                                finishRecording(session)
+                            }
                         }
                     }
                     if (!active || generation != current || engine != Engine.VLC) return@runOnUiThread
                     when (eventType) {
-                        VlcMediaPlayer.Event.Opening -> { lastVlcState = "Abrindo fluxo" }
-                        VlcMediaPlayer.Event.Playing -> { lastVlcState = "Reprodução iniciada" }
+                        VlcMediaPlayer.Event.Opening -> {
+                            if (lastVlcState != "Abrindo fluxo") event("LibVLC iniciou a abertura")
+                            lastVlcState = "Abrindo fluxo"
+                        }
+                        VlcMediaPlayer.Event.Playing -> {
+                            if (lastVlcState != "Reprodução iniciada") event("LibVLC iniciou a reprodução")
+                            lastVlcState = "Reprodução iniciada"
+                            if (!sawMedia && !sawDecode) setConnectionStage(R.string.player_loading_wait_media)
+                        }
                         VlcMediaPlayer.Event.Vout -> readVlcVideoSize(next)
                         VlcMediaPlayer.Event.Buffering -> {
-                            if (event.buffering < 100f) loading(if (videoReady) R.string.buffer_imagem else R.string.aguarde_imagem)
+                            val percent = bufferingPercent?.toInt()?.coerceIn(0, 100) ?: 0
+                            val band = percent / 25
+                            if (band != lastVlcBufferEvent) {
+                                lastVlcBufferEvent = band
+                                event("Buffer do LibVLC: $percent%")
+                            }
+                            if (percent < 100) loading(if (videoReady) R.string.buffer_imagem else currentStage)
                             else if (videoReady) videoAvailable()
                         }
                         VlcMediaPlayer.Event.EncounteredError -> {
@@ -870,46 +1112,74 @@ class PlayerActivity : AppCompatActivity() {
             next.setMedia(media); media.release(); next.play(); applyDisplayMode()
             // Playing means input is running; actual displayed pictures gate the loading screen.
             fun awaitPicture() {
-                if (!active || generation != current || videoReady || vlcPlayer !== next) return
+                if (!active || generation != current || failedGeneration == current || videoReady || vlcPlayer !== next) return
                 readVlcVideoSize(next)
-                val displayed = runCatching {
-                    val currentMedia = next.media
-                    try { currentMedia?.stats?.displayedPictures ?: 0 } finally { currentMedia?.release() }
-                }.getOrDefault(0)
-                if (displayed > 0) {
-                    lastVlcStats = vlcStatsSnapshot(next)
-                    videoAvailable()
-                } else mainHandler.postDelayed({ awaitPicture() }, 250L)
+                val stats = readVlcCounters(next)
+                if (stats != null) {
+                    if (!sawMedia && (stats.demux > 0 || stats.decoded > 0)) {
+                        sawMedia = true
+                        event("Primeiros dados de mídia observados · bytes=${stats.bytes}; demux=${stats.demux}")
+                        setConnectionStage(R.string.player_loading_decoding)
+                    }
+                    if (!sawDecode && stats.decoded > 0) {
+                        sawDecode = true
+                        event("Primeiro quadro decodificado observado")
+                        setConnectionStage(R.string.player_loading_wait_frame)
+                    }
+                    if (stats.shown > 0) {
+                        lastVlcStats = stats.describe()
+                        videoAvailable()
+                        return
+                    }
+                }
+                mainHandler.postDelayed({ awaitPicture() }, 250L)
             }
             mainHandler.postDelayed({ awaitPicture() }, 250L)
         } catch (error: Exception) { onAttemptFailed("LibVLC", causeSummary(error)) }
         catch (error: LinkageError) { onAttemptFailed("LibVLC", "Biblioteca nativa indisponível (${error.javaClass.simpleName})") }
     }
     private fun onRecordClick() {
-        if (recordPending) { recordPending=false; updateRecordButton(); return }
+        if (recordPending) {
+            event("Preparação de gravação cancelada")
+            recordPending = false; updateRecordButton(); return
+        }
         if (recordingSession != null) { stopRecording(); return }
         if (!videoReady || finalizingCount > 0) return
+        event("Gravação solicitada")
         AlertDialog.Builder(this).setTitle(R.string.gravar).setMessage(R.string.gravacao_local_hint)
-            .setNegativeButton(R.string.cancelar, null).setPositiveButton(R.string.iniciar_gravacao) { _, _ ->
+            .setNegativeButton(R.string.cancelar) { _, _ -> event("Gravação cancelada antes de iniciar") }
+            .setOnCancelListener { event("Confirmação de gravação fechada") }
+            .setPositiveButton(R.string.iniciar_gravacao) { _, _ ->
                 if (!active || !videoReady) return@setPositiveButton
                 if (engine == Engine.MEDIA3) { recordPending = true; engine = Engine.VLC; playCurrent() } else beginRecording()
             }.show()
     }
     private fun beginRecording() {
-        val player = vlcPlayer ?: return
-        if (!active || !videoReady || recordingSession != null || finalizingCount > 0) return
-        val session = runCatching { RecordingStore.newSession(this) }.getOrNull()
+        val player = vlcPlayer
+        if (player == null || !active || !videoReady || recordingSession != null || finalizingCount > 0) {
+            event("Gravação não iniciada: player ou vídeo indisponível, ou outro salvamento em andamento", failed = true)
+            return
+        }
+        val started = runCatching { RecordingStore.newSession(this) }
+        val session = started.getOrNull()
         if (session == null || session.usableSpace < 100L*1024*1024) {
+            val reason = started.exceptionOrNull()?.let(::causeSummary)
+                ?: if (session == null) "pasta de sessão indisponível" else "espaço insuficiente"
+            event("Gravação não iniciada: $reason", failed = true)
             session?.delete(); Toast.makeText(this, R.string.gravacao_espaco, Toast.LENGTH_LONG).show(); updateRecordButton(); return
         }
         recordingSession = session; recordingPlayer = player; stoppingRecording = false
         recordingConfirmed = false; recordingStart = SystemClock.elapsedRealtime()
-        val ok = runCatching { player.record(session.absolutePath) }.getOrDefault(false)
-        if (!ok) {
+        event("Pedido de início enviado ao VLC")
+        val nativeStart = runCatching { player.record(session.absolutePath) }
+        if (!nativeStart.getOrDefault(false)) {
+            val reason = nativeStart.exceptionOrNull()?.let(::causeSummary) ?: "operação recusada"
+            event("VLC não iniciou a gravação: $reason", failed = true)
             recordingSession = null; recordingPlayer = null; session.delete()
             Toast.makeText(this, R.string.gravacao_falhou, Toast.LENGTH_LONG).show()
         } else mainHandler.postDelayed({
             if (recordingSession == session && !recordingConfirmed && !stoppingRecording) {
+                event("VLC não confirmou a gravação em 8 s", failed = true)
                 Toast.makeText(this, R.string.gravacao_sem_confirmacao, Toast.LENGTH_LONG).show(); stopRecording()
             }
         }, 8_000L)
@@ -921,6 +1191,7 @@ class PlayerActivity : AppCompatActivity() {
         recordTimer.text = String.format(Locale.ROOT, "● REC %02d:%02d", secs/60, secs%60)
         recordTimer.visibility = View.VISIBLE
         if (session.usableSpace < 16L*1024*1024) {
+            event("Gravação interrompida por espaço insuficiente", failed = true)
             Toast.makeText(this, R.string.gravacao_espaco, Toast.LENGTH_LONG).show(); stopRecording(); return
         }
         mainHandler.postDelayed({ tickRecording(session) }, 1000L)
@@ -929,10 +1200,14 @@ class PlayerActivity : AppCompatActivity() {
         val session = recordingSession ?: return
         if (stoppingRecording) return
         stoppingRecording = true; updateRecordButton()
-        runCatching { recordingPlayer?.record(null) }
+        event("Encerramento da gravação solicitado")
+        val native = runCatching { recordingPlayer?.record(null) }
+        if (native.getOrNull() != true)
+            event("VLC não aceitou o pedido de parada: ${native.exceptionOrNull()?.let(::causeSummary) ?: "sem confirmação"}", failed = true)
         // If native closure is not confirmed, stop the native player before moving files.
         mainHandler.postDelayed({
             if (recordingSession == session && stoppingRecording) {
+                event("VLC não confirmou a parada; player será liberado antes de salvar", failed = true)
                 val current = generation
                 releasePlayers()
                 if (active && generation == current) playCurrent()
@@ -948,10 +1223,21 @@ class PlayerActivity : AppCompatActivity() {
         val app = applicationContext
         RecordingStore.io.execute {
             val result = runCatching { RecordingFiles.finish(RecordingStore.root(app), session) }
+            val saved = result.getOrNull().orEmpty()
+            val bytes = saved.sumOf { it.length() }
             runOnUiThread {
+                when {
+                    result.isFailure -> event("Falha ao salvar gravação: ${result.exceptionOrNull()?.let(::causeSummary)}", failed = true)
+                    saved.isEmpty() -> event("Encerramento não gerou gravação utilizável", failed = true)
+                    else -> event("Gravação salva · ${saved.size} arquivo(s) · $bytes bytes")
+                }
                 finalizingCount--; if (!isDestroyed) updateRecordButton()
                 RecordingStore.notifyChanged()
-                val message = if (result.getOrNull()?.isNotEmpty() == true) R.string.gravacao_salva else R.string.gravacao_vazia
+                val message = when {
+                    result.isFailure -> R.string.gravacao_falhou
+                    saved.isNotEmpty() -> R.string.gravacao_salva
+                    else -> R.string.gravacao_vazia
+                }
                 Toast.makeText(app, message, Toast.LENGTH_LONG).show()
             }
         }
@@ -979,7 +1265,7 @@ class PlayerActivity : AppCompatActivity() {
         val isRtsp = engine == Engine.VLC && CameraStreamProtocol.isRtsp(currentUrl)
         val via = if (isRtsp) ", ${rtspTransport.name}, auth=${if (rtspOptionsOnly) "opções" else "URL"}" else ""
         failures.add("$from (fluxo ${index+1}$via): ${maskCredentials(detail)}")
-        event("Falha $from fluxo ${index+1}$via: ${maskCredentials(detail)}")
+        event("Falha $from fluxo ${index+1}$via: ${maskCredentials(detail)}", failed = true)
         // Antes de trocar TCP/UDP, tentar a segunda estratégia somente se há login.
         // Não insistir em autenticação alternativa para fluxos anônimos.
         val retryAuth = isRtsp && !rtspOptionsOnly &&
@@ -1002,7 +1288,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun showFailure() {
         releasePlayers(); recordPending = false; videoReady = false; loadingBox.visibility = View.GONE
         updateViewerChrome()
-        engineText.setText(R.string.status_conectando)
+        engineText.setText(R.string.player_connection_failed)
         if (urls.none { CameraStreamProtocol.isRtsp(it) })
             errorText.text = "Não foi possível abrir o vídeo. Confira a URL e o formato transmitido."
         else errorText.setText(if (hevcSeen) R.string.erro_h265 else R.string.erro_generico)
@@ -1085,8 +1371,6 @@ class PlayerActivity : AppCompatActivity() {
         }, "rtsp-diagnostic").apply { isDaemon = true; start() }
     }
     private fun causeSummary(error: Throwable): String = generateSequence(error) { it.cause }.take(6)
-        .joinToString("; ") { "${it.javaClass.simpleName}: ${it.message.orEmpty()}" }
-    private fun maskCredentials(input: String): String = input
-        .replace(Regex("""(?i)rtsp://[^\s"'<>]+"""), "rtsp://[endereço oculto]")
-        .replace(Regex("""(?i)(Authorization:|WWW-Authenticate:|Password:|token=)[^\r\n]+"""), "$1 [oculto]")
+        .joinToString(" → ") { it.javaClass.simpleName }
+    private fun maskCredentials(input: String): String = PlaybackJournal.mask(input)
 }

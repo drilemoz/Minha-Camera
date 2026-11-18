@@ -1,3 +1,9 @@
+# Minha Câmera 1.4.83 (versionCode 93)
+
+- Tela de conexão com etapa atual, tempo decorrido, tentativa e previsão da primeira imagem quando há histórico.
+- Diagnóstico mais completo para erros de conexão, visualização, captura JPEG e gravação. Exportação TXT inclui a sessão atual e a anterior.
+- Atalho de diagnóstico na tela de espera e na tela cheia. Mantidos recorte, gravação, RTSP e política de atualização do GitHub.
+
 # Minha Câmera 1.4.82 (versionCode 92)
 
 - Em **Imagem**, selecione a lente superior, inferior ou as duas. **Tela cheia** mantém a escolha.

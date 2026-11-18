@@ -4,6 +4,7 @@ R = Path(__file__).resolve().parents[1]
 W = (R / 'app/src/main/java/com/minhacamera/WelcomeActivity.kt').read_text()
 D = (R / 'app/src/main/java/com/minhacamera/CameraReportDialog.kt').read_text()
 P = (R / 'app/src/main/java/com/minhacamera/PlayerActivity.kt').read_text()
+J = (R / 'app/src/main/java/com/minhacamera/PlaybackDiagnostics.kt').read_text()
 
 class NewDesignAndRtspDiagnostic(unittest.TestCase):
     def test_welcome_centers_without_removing_scroll(self):
@@ -25,5 +26,7 @@ class NewDesignAndRtspDiagnostic(unittest.TestCase):
         self.assertNotIn('lines.add(if (::errorDetail.isInitialized)', P)
     def test_authentication_still_redacted(self):
         self.assertIn('maskCredentials(report)', P)
-        self.assertIn('rtsp://[endereço oculto]', P)
+        self.assertIn('PlaybackJournal.mask(input)', P)
+        self.assertIn('(?:rtsp|rtsps|http|https', J)
+        self.assertIn('[endereço protegido]', J)
 if __name__ == '__main__': unittest.main()

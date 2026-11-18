@@ -1,3 +1,10 @@
+## 1.4.83+93 — 2026-11-18
+
+- Painel visual de conexão com etapa, fluxo, transporte, porcentagem do limite da tentativa, relógio e previsão baseada no histórico local.
+- Diagnóstico do visualizador IP registra seleção, conexão e tentativas, início do vídeo, troca de lente, tela cheia, PiP, JPEG e o ciclo de gravação até o resultado do salvamento.
+- Relatório inclui sessão atual e anterior e a última exceção Java/Kotlin vinculada ao visualizador. Cópia e exportação consultam o relatório atualizado. URLs completas, caminhos personalizados, credenciais e nomes de arquivos não fazem parte do histórico novo.
+- O temporizador do painel não muda as tentativas RTSP ou os 15 s de limite. Validação do APK e testes em aparelho pendentes.
+
 ## 1.4.82+92 — 2026-11-18
 
 - Visualizador RTSP passa a recortar na tela as duas metades do vídeo composto, via TextureView do LibVLC e dimensões da faixa.

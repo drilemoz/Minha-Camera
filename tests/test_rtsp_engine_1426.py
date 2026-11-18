@@ -11,8 +11,9 @@ class RtspEnginePolicyTests(unittest.TestCase):
     def test_player_starts_only_libvlc(self):
         self.assertIn('private val media3RtspEnabled = false', PLAYER)
         self.assertIn('private var engine = Engine.VLC', PLAYER)
-        self.assertIn('if (!active) { active = true; resetAndPlay(Engine.VLC) }', PLAYER)
-        self.assertIn('R.id.btnRetry).setOnClickListener { resetAndPlay(Engine.VLC) }', PLAYER)
+        start = PLAYER.split('override fun onStart()', 1)[1].split('override fun onStop()', 1)[0]
+        self.assertRegex(start, r'(?s)if \(!active\)\s*\{.*?active = true.*?resetAndPlay\(Engine\.VLC\)')
+        self.assertRegex(PLAYER, r'R.id.btnRetry\)\.setOnClickListener\s*\{[^}]*resetAndPlay\(Engine\.VLC\)')
         self.assertNotIn('resetAndPlay(Engine.MEDIA3)', PLAYER)
         self.assertNotIn('menu.add(0, 2001', PLAYER)
     def test_indirect_media3_is_blocked(self):

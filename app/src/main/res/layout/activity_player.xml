@@ -20,10 +20,47 @@
       android:textSize="12sp" android:visibility="gone" android:accessibilityLiveRegion="polite" />
   <TextView android:id="@+id/engineText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|start" android:layout_margin="12dp" android:background="@drawable/player_badge" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:textColor="@color/live_accent" android:textStyle="bold" android:textSize="12sp" />
   <TextView android:id="@+id/recordTimer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|end" android:layout_margin="12dp" android:background="@drawable/player_badge" android:padding="10dp" android:textColor="#FFAAA7" android:textStyle="bold" android:visibility="gone" />
-  <LinearLayout android:id="@+id/loadingBox" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:layout_margin="24dp" android:background="@drawable/player_badge" android:padding="24dp" android:orientation="vertical" android:gravity="center">
-   <ProgressBar android:id="@+id/progress" android:layout_width="40dp" android:layout_height="40dp" android:indeterminateTint="@color/live_accent" />
-   <TextView android:id="@+id/loadingTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="@string/carregando_imagem" android:textColor="@color/player_text" android:textSize="16sp" android:textStyle="bold" android:gravity="center" />
-   <TextView android:id="@+id/loadingDetail" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/aguarde_imagem" android:textColor="@color/player_muted" android:textSize="13sp" android:gravity="center" />
+  <LinearLayout android:id="@+id/loadingBox"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:layout_gravity="center" android:layout_marginHorizontal="16dp"
+      android:background="@drawable/player_badge" android:padding="18dp"
+      android:orientation="vertical">
+    <TextView android:id="@+id/loadingAttempt"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="@color/live_accent" android:textSize="12sp" android:textStyle="bold" />
+    <TextView android:id="@+id/loadingTitle"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="7dp" android:text="@string/player_loading_title"
+        android:textColor="@color/player_text" android:textSize="20sp" android:textStyle="bold" />
+    <TextView android:id="@+id/loadingDetail"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="5dp" android:text="@string/player_loading_opening"
+        android:textColor="@color/player_muted" android:textSize="14sp"
+        android:accessibilityLiveRegion="polite" />
+    <ProgressBar android:id="@+id/progress" style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="14dp" android:minHeight="6dp" android:maxHeight="6dp"
+        android:max="100" android:progressTint="@color/live_accent"
+        android:progressBackgroundTint="#34506F" android:indeterminateTint="@color/live_accent"
+        android:importantForAccessibility="no" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:orientation="horizontal">
+      <TextView android:id="@+id/loadingPercent"
+          android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+          android:textColor="@color/player_text" android:textSize="12sp" />
+      <TextView android:id="@+id/loadingElapsed"
+          android:layout_width="wrap_content" android:layout_height="wrap_content"
+          android:textColor="@color/player_muted" android:textSize="12sp" />
+    </LinearLayout>
+    <TextView android:id="@+id/loadingEstimate"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="9dp" android:textColor="@color/player_text" android:textSize="13sp" />
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnLoadingDiagnostic" style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="end" android:layout_marginTop="2dp"
+        android:minHeight="48dp" android:textAllCaps="false" android:text="@string/player_view_diagnostics"
+        app:icon="@drawable/ic_ui_bug" app:iconGravity="textStart" />
   </LinearLayout>
   <LinearLayout android:id="@+id/errorBox" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:orientation="vertical" android:padding="24dp" android:background="@color/player_background" android:visibility="gone">
    <TextView android:id="@+id/errorText" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textColor="@color/player_text" android:textSize="16sp" />
@@ -42,6 +79,12 @@
         android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:minHeight="48dp" android:textAllCaps="false" android:text="@string/imagem"
         app:icon="@drawable/ic_fit" app:iconGravity="textStart" />
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnFullscreenDiagnostic" style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="48dp" android:layout_height="48dp"
+        android:padding="0dp" android:minWidth="0dp"
+        android:contentDescription="@string/player_view_diagnostics"
+        app:icon="@drawable/ic_ui_bug" app:iconPadding="0dp" app:iconGravity="textStart" />
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnFullscreenExit" style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
