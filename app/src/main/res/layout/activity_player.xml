@@ -81,6 +81,16 @@
         android:contentDescription="@string/player_view_diagnostics"
         app:icon="@drawable/ic_ui_bug" app:iconPadding="0dp" app:iconGravity="textStart" />
     <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnFullscreenListen" style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="48dp" android:layout_height="48dp" android:padding="0dp" android:minWidth="0dp"
+        android:contentDescription="@string/player_audio_listen" app:icon="@drawable/ic_ui_speaker_off"
+        app:iconPadding="0dp" app:iconGravity="textStart" />
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnFullscreenPtz" style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="48dp" android:layout_height="48dp" android:padding="0dp" android:minWidth="0dp"
+        android:contentDescription="@string/player_ptz_title" app:icon="@drawable/ic_ui_ptz"
+        app:iconPadding="0dp" app:iconGravity="textStart" />
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btnFullscreenExit" style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:minHeight="48dp" android:textAllCaps="false" android:text="@string/player_exit_fullscreen_compact"

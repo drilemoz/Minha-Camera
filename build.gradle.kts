@@ -19,7 +19,7 @@ val protocolSources = files(
         // compilá-los com protocol-stubs declara SystemClock duas vezes.
         exclude("torch-stubs/**", "PhoneTorchControllerSmoke.kt")
     },
-    listOf("NetUtil", "OnvifClient", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneVersionNotice", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneBackgroundRecovery", "PhonePipelineTelemetry", "RemoteTransferProgress", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
+    listOf("NetUtil", "OnvifClient", "OnvifPtz", "RtspProbe", "RtspCodec", "WsDiscovery", "RecordingFiles", "VideoGeometry", "OnvifIdentity", "PhoneCameraUrls", "Nv21Frames", "PhoneCameraServer", "PhoneVersionNotice", "PhoneBatteryReading", "PhoneStreamStats", "PhonePublishedFps", "PhoneEcoPolicy", "PhonePinchZoom", "PhoneBackgroundHandoffPolicy", "PhoneBackgroundRecovery", "PhonePipelineTelemetry", "RemoteTransferProgress", "PhoneAvcAnnexB", "PhoneOrientationMode", "RtspPlaybackPolicy", "RtspServiceDetector", "CameraStreamProtocol").map {
         "app/src/main/java/com/minhacamera/$it.kt"
     }
 )

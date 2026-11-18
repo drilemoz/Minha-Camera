@@ -7,7 +7,7 @@
 - Não usar credenciais reais em logs, testes ou repositório.
 - Documentar os resultados úteis para migração futura ao Vigia IA, sem modificar esse segundo aplicativo automaticamente.
 
-- Versão atual: 1.4.89+99. APKs diretos compartilham versionCode 99; não aplicar offsets por ABI.
+- Versão atual: 1.4.90+100. APKs diretos compartilham versionCode 100; não aplicar offsets por ABI.
 - Repetir a etapa Python de preflight na mesma ordem da CI, com cada comando em processo separado. A descoberta global não substitui os testes isolados.
 - O APK universal deve caber em 200 MiB (209.715.200 bytes), inclusive para atualizar a 1.4.81. Empacotar as bibliotecas nativas compactadas. Bloquear antes do upload se exceder o limite. Não substituir a Release 1.4.85.
 - Manter Universal e splits das quatro ABIs fornecidas pelo LibVLC; verificar o AAR e os APKs.
@@ -19,5 +19,6 @@
 - A nova chave NÃO atualiza instalações assinadas por outra chave. Recuperar a chave legada se for indispensável manter a instalação anterior.
 
 - Rotação no player IP muda somente a apresentação. Preservar lente e sessão, nunca deduzir proporção pelo tamanho da tela e nunca ocultar o vídeo se faltarem dimensões do recorte. Só a seleção explícita de uma lente habilita o padrão de duas metades 16:9 quando a geometria real falta.
+- Controle PTZ somente por toque explícito, em sessão LAN com a câmera cadastrada. Consulta de serviço não move. Pulso curto, sem fila ou repetição automática, e parada sem confirmação deve ser informada. Escuta ajusta o volume do mesmo player, sem pedir microfone.
 - Gravação local usa o mesmo player LibVLC e termina ao sair; nunca afirmar gravação contínua em background ou acesso a arquivos históricos da câmera.
 - Nomes RTSP produzidos pelo VLC ficam em pasta privada de sessão e devem ser renomeados antes de compartilhar.

@@ -1,3 +1,5 @@
+**Novo em 1.4.90:** o visualizador IP ganhou **Ouvir/Silenciar** no próprio fluxo e **Mover câmera** por ONVIF na rede local, com pulso curto por toque. Veja [controles e validação](docs/VALIDATION_1_4_90.md).
+
 **Novo em 1.4.89:** a escolha da lente ativa o recorte mesmo quando a câmera não informa dimensões. Na falta delas, o app usa um padrão de duas lentes 16:9 empilhadas e mantém a imagem inteira original no respectivo modo. Veja [validação dos modos de imagem](docs/VALIDATION_1_4_89.md).
 
 **Novo em 1.4.88:** o visualizador IP entra em tela cheia ao girar para horizontal, preserva a lente e mantém a imagem inteira disponível se não puder determinar o recorte. Veja [validação do player RTSP](docs/VALIDATION_1_4_88.md).
@@ -34,7 +36,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.89 (versionCode 99)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.90 (versionCode 100)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

@@ -1,3 +1,9 @@
+## 1.4.90+100 — 2026-11-18
+
+- Controle local ONVIF de giro e inclinação, com descoberta de perfil, setas com pulso de 200 ms, botão Parar e aviso quando a câmera não confirma.
+- A porta ONVIF pode ser configurada separadamente da porta RTSP. Opção de compatibilidade Jortan/Yoosee conforme os testes do aparelho.
+- Ouvir/Silenciar com o áudio do mesmo fluxo, em tela normal e tela cheia. Não abre o microfone do celular nem altera o fluxo salvo na gravação.
+
 ## 1.4.89+99 — 2026-11-18
 
 - Lente superior ou inferior passa a aplicar o recorte imediatamente, mesmo sem dimensões fornecidas pelo LibVLC.

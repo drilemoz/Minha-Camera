@@ -16,7 +16,7 @@ object OnvifClient {
 
     class Stream(val uri: String, val encoding: String, val width: Int, val height: Int)
     class Result(val streams: List<Stream>, val log: String)
-    private class Resp(val code: Int, val body: String)
+    internal class Resp(val code: Int, val body: String)
 
     private val PORTS = listOf(80, 8080, 2020, 8000, 5000, 8899, 8888, 8081)
 
@@ -151,8 +151,8 @@ object OnvifClient {
     }
 
     // Diferença entre o relógio da câmera e o do celular (ONVIF recusa horário muito diferente).
-    private fun cameraTimeOffset(url: String): Long {
-        val r = soap(url, null, "", 0L, "<GetSystemDateAndTime xmlns=\"$NS_DEV\"/>")
+    internal fun cameraTimeOffset(url: String, timeoutMs: Int? = null): Long {
+        val r = soap(url, null, "", 0L, "<GetSystemDateAndTime xmlns=\"$NS_DEV\"/>", timeoutMs = timeoutMs)
         if (r.code != 200) return 0L
         val utc = Regex(
             "<(?:\\w+:)?UTCDateTime>(.*?)</(?:\\w+:)?UTCDateTime>", RegexOption.DOT_MATCHES_ALL
@@ -173,28 +173,40 @@ object OnvifClient {
         return cal.timeInMillis - System.currentTimeMillis()
     }
 
-    private fun soap(url: String, user: String?, pass: String, offsetMs: Long, body: String): Resp {
+    internal fun soap(url: String, user: String?, pass: String, offsetMs: Long, body: String,
+        action: String? = null, timeoutMs: Int? = null): Resp {
         val header = if (user != null) securityHeader(user, pass, offsetMs) else ""
         val envelope = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
             "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">" +
             (if (header.isNotEmpty()) "<s:Header>$header</s:Header>" else "") +
             "<s:Body>$body</s:Body></s:Envelope>"
+        val c = try { URL(url).openConnection() as HttpURLConnection }
+            catch (_: Exception) { return Resp(-1, "") }
         return try {
-            val c = URL(url).openConnection() as HttpURLConnection
-            c.connectTimeout = 3000
-            c.readTimeout = 5000
+            c.connectTimeout = timeoutMs ?: 3000
+            c.readTimeout = timeoutMs ?: 5000
+            c.instanceFollowRedirects = false
             c.requestMethod = "POST"
             c.doOutput = true
-            c.setRequestProperty("Content-Type", "application/soap+xml; charset=utf-8")
-            c.outputStream.use { it.write(envelope.toByteArray()) }
+            c.setRequestProperty("Content-Type", "application/soap+xml; charset=utf-8" +
+                (action?.let { "; action=\"$it\"" } ?: ""))
+            c.outputStream.use { it.write(envelope.toByteArray(Charsets.UTF_8)) }
             val code = c.responseCode
             val stream = if (code in 200..299) c.inputStream else c.errorStream
-            val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
-            c.disconnect()
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                val data = StringBuilder()
+                val buf = CharArray(4096)
+                while (data.length <= 262144) {
+                    val count = reader.read(buf)
+                    if (count < 0) break
+                    data.append(buf, 0, count)
+                }
+                if (data.length <= 262144) data.toString() else ""
+            }.orEmpty()
             Resp(code, text)
-        } catch (e: Exception) {
-            Resp(-1, e.message ?: "")
-        }
+        } catch (_: Exception) {
+            Resp(-1, "")
+        } finally { c.disconnect() }
     }
 
     private fun securityHeader(user: String, pass: String, offsetMs: Long): String {

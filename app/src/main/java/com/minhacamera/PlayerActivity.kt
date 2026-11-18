@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import java.text.SimpleDateFormat
 import java.util.Date
 import android.content.res.Configuration
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -60,6 +61,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** RTSP em LibVLC por padrão: Media3 1.3.1 pode encerrar o processo em resposta sem CSeq. */
 @OptIn(UnstableApi::class)
@@ -107,6 +109,9 @@ class PlayerActivity : AppCompatActivity() {
     private var hevcSeen = false
     private var failedGeneration = -1
     private var videoReady = false
+    private var listenIpCamera = false
+    private val ptzInFlight = AtomicBoolean(false)
+    private var ptzDialog: AlertDialog? = null
     private var fullscreenMode = VideoGeometry.Fullscreen.OFF
     private val fullscreen: Boolean get() = fullscreenMode != VideoGeometry.Fullscreen.OFF
     private var lastLandscape = false
@@ -390,6 +395,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
+        volumeControlStream = AudioManager.STREAM_MUSIC
         // A reformulação forçava bindProcessToNetwork() ao abrir o player.
         // Restaurar a rota padrão anterior e permitir testar o bind via menu.
         useWifiBinding = getSharedPreferences("rtsp_player", MODE_PRIVATE)
@@ -449,6 +455,10 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnDisplay).setOnClickListener { showDisplayOptions() }
         findViewById<View>(R.id.btnFullscreenImage).setOnClickListener { showDisplayOptions() }
         findViewById<View>(R.id.btnFullscreenExit).setOnClickListener { setFullscreen(false) }
+        for (id in listOf(R.id.btnIpListen, R.id.btnFullscreenListen))
+            findViewById<View>(id).setOnClickListener { toggleIpAudio() }
+        for (id in listOf(R.id.btnIpPtz, R.id.btnFullscreenPtz))
+            findViewById<View>(id).setOnClickListener { showIpPtz() }
         findViewById<View>(R.id.btnPip).setOnClickListener { enterPip() }
         findViewById<View>(R.id.btnFullscreen).setOnClickListener { setFullscreen(true) }
         viewport.setOnClickListener {
@@ -478,6 +488,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(inPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig)
         pipVisible = inPictureInPictureMode
+        if (pipVisible) { ptzDialog?.dismiss(); ptzDialog = null }
         event(if (pipVisible) "PiP ativado" else "PiP encerrado")
         if (!pipVisible) handleScreenRotation(newConfig)
         applyFullscreen()
@@ -662,9 +673,10 @@ class PlayerActivity : AppCompatActivity() {
         if (!active) { active = true; event("Visualizador em primeiro plano"); resetAndPlay(Engine.VLC) }
     }
     override fun onStop() {
+        ptzDialog?.dismiss(); ptzDialog = null
         if (android.os.Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode) { super.onStop(); return }
         event("Visualizador saiu do primeiro plano")
-        active = false; recordPending = false; generation++
+        active = false; listenIpCamera = false; recordPending = false; generation++
         mainHandler.removeCallbacksAndMessages(null)
         reportRefreshScheduled = false
         releasePlayers()
@@ -723,6 +735,7 @@ class PlayerActivity : AppCompatActivity() {
         viewport.isClickable = fullscreen && !pipVisible
         engineText.visibility = if (fullscreen || pipVisible) View.GONE else View.VISIBLE
         recordTimer.visibility = if (!pipVisible && recordingConfirmed) View.VISIBLE else View.GONE
+        updateIpControls()
         lensBadge.visibility = if (videoReady && !pipVisible && displayMode > 0 && (!fullscreen || showFullscreenActions))
             View.VISIBLE else View.GONE
         if (displayMode > 0) {
@@ -731,11 +744,62 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun toggleIpAudio() {
+        if (!videoReady || !active) return
+        listenIpCamera = !listenIpCamera
+        applyIpAudioVolume()
+        updateIpControls()
+        event(if (listenIpCamera) "Escuta da câmera ligada" else "Escuta da câmera silenciada")
+        if (listenIpCamera && vlcPlayer?.let { runCatching { it.audioTracksCount }.getOrNull() == 0 } == true)
+            Toast.makeText(this, R.string.player_audio_no_track, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Audio comes from the existing RTSP session. Do not turn off its decoder or local recording track. */
+    private fun applyIpAudioVolume() {
+        val volume = if (listenIpCamera) 100 else 0
+        vlcPlayer?.let { runCatching { it.setVolume(volume) } }
+        exo?.volume = volume / 100f
+    }
+
+    private fun updateIpControls() {
+        val label = if (listenIpCamera) R.string.player_audio_mute else R.string.player_audio_listen
+        val icon = if (listenIpCamera) R.drawable.ic_ui_speaker else R.drawable.ic_ui_speaker_off
+        for (id in listOf(R.id.btnIpListen, R.id.btnFullscreenListen)) {
+            findViewById<MaterialButton>(id).apply {
+                isEnabled = videoReady && !pipVisible
+                setIconResource(icon)
+                contentDescription = getString(label)
+                if (id == R.id.btnIpListen) setText(label)
+            }
+        }
+        val ptz = videoReady && !pipVisible && urls.getOrNull(index)?.let(CameraStreamProtocol::isRtsp) == true
+        for (id in listOf(R.id.btnIpPtz, R.id.btnFullscreenPtz)) findViewById<View>(id).isEnabled = ptz
+    }
+
+    private fun showIpPtz() {
+        if (!active || !videoReady || pipVisible || ptzDialog?.isShowing == true) return
+        val url = urls.getOrNull(index)?.takeIf(CameraStreamProtocol::isRtsp) ?: return
+        val uri = Uri.parse(url)
+        val host = uri.host.orEmpty()
+        val info = uri.encodedUserInfo.orEmpty()
+        val user = Uri.decode(info.substringBefore(':'))
+        val password = Uri.decode(info.substringAfter(':', ""))
+        val path = uri.encodedPath.orEmpty() + (uri.encodedQuery?.let { "?$it" } ?: "")
+        if (!OnvifPtz.isLanIPv4(host) || user.isBlank()) {
+            Toast.makeText(this, R.string.player_ptz_invalid_camera, Toast.LENGTH_LONG).show()
+            return
+        }
+        val current = generation
+        ptzDialog = IpPtzDialog.show(this, host, user, password, path, ptzInFlight,
+            isCurrent = { active && generation == current && !pipVisible && !isDestroyed },
+            report = { message, failed -> event(message, failed) })
+    }
+
     private fun configureControls() {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val controls = findViewById<LinearLayout>(R.id.playerControls)
         controls.orientation = if (landscape) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-        for (id in listOf(R.id.controlsPrimary, R.id.controlsSecondary)) {
+        for (id in listOf(R.id.controlsPrimary, R.id.controlsSecondary, R.id.controlsIp)) {
             findViewById<LinearLayout>(id).layoutParams = LinearLayout.LayoutParams(
                 if (landscape) 0 else LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT, if (landscape) 1f else 0f)
@@ -924,6 +988,7 @@ class PlayerActivity : AppCompatActivity() {
         if (active) playCurrent()
     }
     private fun releasePlayers() {
+        ptzDialog?.dismiss(); ptzDialog = null
         geometryRetry?.let { mainHandler.removeCallbacks(it) }; geometryRetry = null
         vlcTextureListener?.let { vlcTexture?.removeOnLayoutChangeListener(it) }
         vlcTextureListener = null; vlcTexture = null
@@ -1080,6 +1145,7 @@ class PlayerActivity : AppCompatActivity() {
                     onAttemptFailed("Media3", detail)
                 }
             })
+            applyIpAudioVolume()
             exoView.player = next; next.setMediaSource(source); next.prepare(); next.playWhenReady = true
             applyDisplayMode()
         } catch (error: Exception) { onAttemptFailed("Media3", causeSummary(error)) }
@@ -1135,11 +1201,13 @@ class PlayerActivity : AppCompatActivity() {
                             lastVlcState = "Abrindo fluxo"
                         }
                         VlcMediaPlayer.Event.Playing -> {
+                            applyIpAudioVolume()
                             if (lastVlcState != "Reprodução iniciada") event("LibVLC iniciou a reprodução")
                             lastVlcState = "Reprodução iniciada"
                             if (!sawMedia && !sawDecode) setConnectionStage(R.string.player_loading_wait_media)
                         }
                         VlcMediaPlayer.Event.Vout -> readVlcVideoSize(next)
+                        VlcMediaPlayer.Event.ESAdded, VlcMediaPlayer.Event.ESSelected -> applyIpAudioVolume()
                         VlcMediaPlayer.Event.Buffering -> {
                             val percent = bufferingPercent?.toInt()?.coerceIn(0, 100) ?: 0
                             val band = percent / 25
@@ -1198,7 +1266,9 @@ class PlayerActivity : AppCompatActivity() {
             if (CameraStreamProtocol.isRtsp(url) && rtspTransport == RtspTransport.TCP)
                 media.addOption(":rtsp-tcp")
             media.addOption(":network-caching=500")
-            next.setMedia(media); media.release(); next.play(); applyDisplayMode()
+            next.setMedia(media); media.release()
+            applyIpAudioVolume()
+            next.play(); applyDisplayMode()
             // Playing means input is running; actual displayed pictures gate the loading screen.
             fun awaitPicture() {
                 if (!active || generation != current || failedGeneration == current || videoReady || vlcPlayer !== next) return

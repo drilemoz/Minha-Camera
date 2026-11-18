@@ -1,3 +1,8 @@
+# Minha Câmera 1.4.90 (versionCode 100)
+
+- Ouvir e silenciar o som recebido da câmera IP sem reconectar.
+- Painel para girar e inclinar câmeras ONVIF na rede local, com toque único e pulso curto. Luz branca e áudio de retorno não fazem parte desta versão.
+
 # Minha Câmera 1.4.89 (versionCode 99)
 
 - Alterna entre imagem inteira, lente superior e lente inferior mesmo em câmeras que não informam o tamanho do vídeo.

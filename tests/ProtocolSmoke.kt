@@ -202,6 +202,7 @@ fun main() {
     checkRemoteRecordingApi()
     checkVideoGeometry()
     checkOnvifIdentity()
+    checkOnvifPtz()
     checkRecordingFiles()
     checkSdpCodec()
     checkRtspSdpProbe()
