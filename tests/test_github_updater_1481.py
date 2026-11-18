@@ -25,7 +25,7 @@ class UpdateContractTest(unittest.TestCase):
         self.assertIn("registerActivityLifecycleCallbacks(updates)", source("CameraApplication.kt"))
         manager = source("GitHubUpdateManager.kt")
         for text in ["override fun onActivityStarted", "override fun onActivityStopped", "main.removeCallbacks(periodic)",
-                     "15 * 60_000L", "REENTRY_COOLDOWN_MS = 60_000L", 'getBoolean("auto_download", true)']:
+                     "2 * 60_000L", "REENTRY_COOLDOWN_MS = 60_000L", 'getBoolean("auto_download", true)']:
             self.assertIn(text, manager)
         self.assertIn("GitHubUpdatesActivity::class.java", source("SettingsActivity.kt"))
         self.assertNotIn("EditText", source("GitHubUpdatesActivity.kt"))
@@ -45,13 +45,16 @@ class UpdateContractTest(unittest.TestCase):
         self.assertEqual([(e.tag, e.attrib["path"]) for e in paths], [("cache-path", "github-updates/ready/")])
         self.assertIn("canRequestPackageInstalls()", source("GitHubUpdatesActivity.kt"))
 
-    def test_publication_requires_verified_job_and_explicit_input(self):
+    def test_publication_requires_verified_job_on_official_main(self):
         workflow = (ROOT / ".github/workflows/build-apk.yml").read_text()
         publish = workflow.split("\n  publish:\n", 1)[1]
         for text in ["inputs.publish_release", "needs: build", "contents: write",
-                     "scripts/prepare_github_release.py", "sha256sum --check", 'gh release create "$tag"']:
+                     "github.event_name == 'push'", "refs/heads/main", "scripts/publish_github_release.sh"]:
             self.assertIn(text, publish)
-        self.assertNotIn("--clobber", publish)
+        script = (ROOT / "scripts/publish_github_release.sh").read_text()
+        for text in ["scripts/prepare_github_release.py", "sha256sum --check", 'gh release create "$tag"']:
+            self.assertIn(text, script)
+        self.assertNotIn("--clobber", script)
 
     def test_preparation_accepts_only_matching_report_hash_identity_and_signer(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -10,7 +10,7 @@ import java.io.File
 import java.util.concurrent.Executors
 
 internal enum class UpdatePhase {
-    IDLE, CHECKING, CURRENT, AVAILABLE, DOWNLOADING, VERIFYING, PAUSED, READY, ERROR
+    IDLE, CHECKING, CURRENT, UNPUBLISHED, AWAITING_APK, AVAILABLE, DOWNLOADING, VERIFYING, PAUSED, READY, ERROR
 }
 
 internal data class UpdateState(
@@ -78,9 +78,15 @@ internal class GitHubUpdateManager(app: Application) : Application.ActivityLifec
             val result = runCatching { client.check(BuildConfig.VERSION_NAME) }
             main.post {
                 result.fold(
-                    onSuccess = { release ->
+                    onSuccess = { catalog ->
+                        val release = catalog.release
                         when {
-                            release == null -> publish(UpdateState(UpdatePhase.CURRENT))
+                            catalog.latestPublished == null -> publish(UpdateState(UpdatePhase.UNPUBLISHED, message =
+                                "O app recebe APKs de GitHub Releases. Um build no Actions sozinho não é uma atualização."))
+                            catalog.isAwaitingApk(BuildConfig.VERSION_NAME) -> publish(UpdateState(UpdatePhase.AWAITING_APK,
+                                message = "A versão ${catalog.latestPublished} foi publicada, mas ainda não tem um APK universal compatível."))
+                            release == null -> publish(UpdateState(UpdatePhase.CURRENT, message =
+                                "Última versão publicada no GitHub: ${catalog.latestPublished}"))
                             previous.phase == UpdatePhase.READY && previous.release != null &&
                                 previous.release.version == release.version &&
                                 previous.release.sha256 == release.sha256 && previous.file?.isFile == true ->
@@ -205,7 +211,7 @@ internal class GitHubUpdateManager(app: Application) : Application.ActivityLifec
     override fun onActivityDestroyed(activity: Activity) = Unit
 
     private companion object {
-        const val POLL_MS = 15 * 60_000L
+        const val POLL_MS = 2 * 60_000L
         const val REENTRY_COOLDOWN_MS = 60_000L
         val busy = setOf(UpdatePhase.CHECKING, UpdatePhase.DOWNLOADING, UpdatePhase.VERIFYING)
     }

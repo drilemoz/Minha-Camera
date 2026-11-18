@@ -123,7 +123,7 @@ class GitHubUpdatesActivity : AppCompatActivity() {
             setOnCheckedChangeListener { _, enabled -> manager.setAutoDownload(enabled) }
         }
         panel.addView(toggle)
-        addText(panel, "Verifica ao abrir e a cada 15 min com o app em uso.", 13)
+        addText(panel, "Verifica ao abrir e a cada 2 min com o app em uso.", 13)
         check = button(panel, "Verificar agora") { manager.check(manual = true) }
 
         val transfer = card(content)
@@ -176,7 +176,9 @@ class GitHubUpdatesActivity : AppCompatActivity() {
         status.text = when (phase) {
             UpdatePhase.IDLE -> "Aguardando verificação"
             UpdatePhase.CHECKING -> "Verificando no GitHub…"
-            UpdatePhase.CURRENT -> "Você está na versão mais recente"
+            UpdatePhase.CURRENT -> "Nenhuma versão mais nova publicada"
+            UpdatePhase.UNPUBLISHED -> "Nenhuma Release publicada"
+            UpdatePhase.AWAITING_APK -> "Nova Release ainda sem APK compatível"
             UpdatePhase.AVAILABLE -> "Versão ${release?.version} disponível"
             UpdatePhase.DOWNLOADING -> "Baixando ${release?.version}"
             UpdatePhase.VERIFYING -> "Verificando o APK…"

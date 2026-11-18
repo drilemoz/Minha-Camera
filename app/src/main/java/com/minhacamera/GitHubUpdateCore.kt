@@ -35,17 +35,22 @@ internal object GitHubUpdateCore {
         return false
     }
 
-    fun parseReleases(payload: String, installed: String): GitHubUpdateRelease? {
+    fun parseReleases(payload: String, installed: String): GitHubUpdateRelease? =
+        inspectReleases(payload, installed).release
+
+    fun inspectReleases(payload: String, installed: String): GitHubUpdateCatalog {
         val entries = JSONArray(payload)
         var chosen: GitHubUpdateRelease? = null
+        var latestPublished: String? = null
         val availableNotes = mutableMapOf<String, GitHubReleaseNote>()
         for (i in 0 until entries.length().coerceAtMost(100)) {
             val entry = entries.optJSONObject(i) ?: continue
             if (entry.optBoolean("draft", false)) continue
             val tag = entry.optString("tag_name")
-            if (!versionPattern.matches(tag)) continue
-            if (!newer(tag, installed)) continue
+            if (!versionPattern.matches(tag) || versionParts(tag) == null) continue
             val version = tag.removePrefix("v")
+            if (latestPublished == null || newer(version, latestPublished)) latestPublished = version
+            if (!newer(version, installed)) continue
             val name = "MinhaCamera-$version-universal.apk"
             val expectedUrl = "$RELEASES_URL/download/$tag/$name"
             val assets = entry.optJSONArray("assets") ?: continue
@@ -64,19 +69,26 @@ internal object GitHubUpdateCore {
                 if (chosen == null || newer(release.version, chosen.version)) chosen = release
             }
         }
-        val latest = chosen ?: return null
+        val latest = chosen ?: return GitHubUpdateCatalog(latestPublished, null)
         val previous = availableNotes.values.filter { newer(latest.version, it.version) }
             .sortedWith(Comparator { a, b -> when {
                 newer(a.version, b.version) -> -1
                 newer(b.version, a.version) -> 1
                 else -> 0
             } }).take(8)
-        return latest.copy(previousNotes = previous)
+        return GitHubUpdateCatalog(latestPublished, latest.copy(previousNotes = previous))
     }
 
     fun displayNotes(raw: String): String = raw.lineSequence().map { line ->
         line.trim().removePrefix("#").trimStart('#', ' ').replace("**", "").replace("`", "")
     }.filter { it.isNotBlank() }.take(14).joinToString("\n")
+}
+
+internal data class GitHubUpdateCatalog(val latestPublished: String?, val release: GitHubUpdateRelease?) {
+    /** A newer public tag with no compatible asset must not be reported as up to date. */
+    fun isAwaitingApk(installed: String): Boolean = latestPublished?.let {
+        GitHubUpdateCore.newer(it, installed) && it != release?.version
+    } == true
 }
 
 internal data class GitHubReleaseNote(val version: String, val notes: String)

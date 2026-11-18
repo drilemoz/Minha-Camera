@@ -4,9 +4,9 @@ package com.minhacamera
 object PhoneReleaseHighlights {
     data class Entry(val version: String, val code: Int, val title: String, val detail: String)
     val latest = listOf(
+        Entry("1.4.85", 95, "Um APK por Release", "As versões públicas anexam somente o APK universal assinado, pronto para instalar."),
+        Entry("1.4.84", 94, "Releases automáticas", "Builds assinados na main passaram a publicar os APKs automaticamente. O atualizador diferencia build de Release."),
         Entry("1.4.83", 93, "Diagnóstico e espera da câmera", "Painel de abertura com relógio e previsão. Diagnóstico do player IP reúne conexão, visualização, captura e gravação."),
-        Entry("1.4.82", 92, "Uma lente em tela cheia", "Escolha a lente em Imagem e mantenha a seleção em tela cheia. A gravação mantém o fluxo completo."),
-        Entry("1.4.81", 91, "Atualizações pelo GitHub", "Busca automática, progresso, notas de versão, pausar e retomar. A instalação passa pela confirmação do Android."),
     )
     fun history(): String = latest.joinToString("\n\n") { "${it.version}+${it.code}\n• ${it.detail}" }
 }

@@ -1,4 +1,8 @@
-**Novo em 1.4.83:** o visualizador IP mostra a etapa de abertura, porcentagem do limite da tentativa, tempo decorrido e estimativa da primeira imagem com base no histórico local. O botão **Diagnóstico** reúne conexão, seleção de câmera/lente, tela cheia/PiP, captura e gravação. Veja [como ler o painel](docs/RTSP_DIAGNOSTICO.md).
+**Novo em 1.4.85:** cada GitHub Release publica somente o APK universal assinado, como arquivo `.apk` direto. Os APKs por arquitetura e relatórios continuam nos artefatos do Actions. Veja [publicação e validação](docs/GITHUB_UPDATES.md).
+
+**Anterior em 1.4.84:** builds assinados e verificados da branch `main` do repositório oficial publicam automaticamente no GitHub Releases. Os artefatos no Actions continuam disponíveis. O atualizador diferencia ausência de Release, versão sem APK compatível e versão atual, e consulta a cada dois minutos em primeiro plano. Veja [publicação e validação](docs/GITHUB_UPDATES.md).
+
+**Anterior em 1.4.83:** o visualizador IP mostra a etapa de abertura, porcentagem do limite da tentativa, tempo decorrido e estimativa da primeira imagem com base no histórico local. O botão **Diagnóstico** reúne conexão, seleção de câmera/lente, tela cheia/PiP, captura e gravação. Veja [como ler o painel](docs/RTSP_DIAGNOSTICO.md).
 
 **Anterior em 1.4.82:** no player RTSP, escolha a lente em **Imagem** e abra **Tela cheia** para ver só a metade escolhida sem cortar suas bordas. A seleção não troca o fluxo RTSP e a gravação continua com o quadro completo. Veja [pesquisa sobre luz, PTZ e ajustes da Jortan](docs/JORTAN_CONTROLES_ONVIF.md).
 
@@ -22,7 +26,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.83 (versionCode 93)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.85 (versionCode 95)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

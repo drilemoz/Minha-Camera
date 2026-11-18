@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: 'Publicar os APKs verificados em GitHub Releases'
+        description: 'Publicar somente o APK universal verificado em GitHub Releases'
         required: false
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -51,6 +51,7 @@ jobs:
       - name: Verificar versionamento e compatibilidade do build
         run: |
           python3 scripts/check_version.py
+          python3 -m unittest discover -s tests -p test_auto_release_1484.py -q
           python3 -m unittest discover -s tests -p test_playback_diagnostics_1483.py -q
           python3 -m unittest discover -s tests -p test_rtsp_lens_fullscreen_1482.py -q
           python3 -m unittest discover -s tests -p test_github_updater_1481.py -q
@@ -114,35 +115,35 @@ jobs:
         id: apk
         run: python3 scripts/verify_apks.py
 
-      - name: Publicar APK universal
+      - name: Guardar APK universal nos artefatos do Actions
         uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.apk.outputs.universal }}
           archive: false
           if-no-files-found: error
 
-      - name: Publicar APK armeabi-v7a
+      - name: Guardar APK armeabi-v7a nos artefatos do Actions
         uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.apk.outputs.armeabi-v7a }}
           archive: false
           if-no-files-found: error
 
-      - name: Publicar APK arm64-v8a
+      - name: Guardar APK arm64-v8a nos artefatos do Actions
         uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.apk.outputs.arm64-v8a }}
           archive: false
           if-no-files-found: error
 
-      - name: Publicar APK x86_64
+      - name: Guardar APK x86_64 nos artefatos do Actions
         uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.apk.outputs.x86_64 }}
           archive: false
           if-no-files-found: error
 
-      - name: Publicar APK x86
+      - name: Guardar APK x86 nos artefatos do Actions
         uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.apk.outputs.x86 }}
@@ -159,8 +160,9 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
 
-      - name: Preparar lote verificado para GitHub Releases
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main' && github.repository == 'drilemoz/Minha-Camera'
+      # Lote interno de validação entre jobs. Não é anexado à Release.
+      - name: Preparar lote interno de publicação
+        if: github.repository == 'drilemoz/Minha-Camera' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
         uses: actions/upload-artifact@v7
         with:
           name: release-verificado
@@ -178,7 +180,7 @@ jobs:
 
 
   publish:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main' && github.repository == 'drilemoz/Minha-Camera'
+    if: github.repository == 'drilemoz/Minha-Camera' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
     needs: build
     permissions:
       contents: write
@@ -192,27 +194,8 @@ jobs:
         with:
           name: release-verificado
           path: release
-      - name: Publicar apenas uma versão nova e verificada
+      - name: Publicar e confirmar a disponibilidade no GitHub Releases
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python3 scripts/prepare_github_release.py release
-          (cd release && sha256sum --check SHA256SUMS)
-          version=$(jq -r '.identity[2]' release/apk-report.json)
-          tag="v$version"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $tag já existe. Não sobrescrevemos APKs publicados."
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            echo "Tag $tag já existe. Confira a revisão antes de publicar."
-            exit 1
-          else
-            rc=$?
-            test "$rc" -eq 2
-          fi
-          gh release create "$tag" release/*.apk release/SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Minha Câmera $version" --notes-file release/notes.md
+        run: bash scripts/publish_github_release.sh release

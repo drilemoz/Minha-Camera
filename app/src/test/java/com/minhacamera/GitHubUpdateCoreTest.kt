@@ -47,6 +47,20 @@ class GitHubUpdateCoreTest {
         assertNull(parse(release("1.4.82", digest = "unknown"))!!.sha256)
     }
 
+    @Test fun distinguishesAnEmptyCatalogAndANewerReleaseWithoutApk() {
+        val none = GitHubUpdateCore.inspectReleases("[]", "1.4.81")
+        assertNull(none.latestPublished)
+        assertFalse(none.isAwaitingApk("1.4.81"))
+        val draft = release("1.4.92", draft = true)
+        val missing = release("1.4.84", state = "new")
+        val older = release("1.4.83")
+        val entries = JSONArray().put(draft).put(missing).put(older)
+        val catalog = GitHubUpdateCore.inspectReleases(entries.toString(), "1.4.81")
+        assertEquals("1.4.84", catalog.latestPublished)
+        assertEquals("1.4.83", catalog.release?.version)
+        assertTrue(catalog.isAwaitingApk("1.4.81"))
+    }
+
     @Test fun verifiesCompleteRangeBeforeAppend() {
         assertTrue(GitHubUpdateCore.matchingContentRange("bytes 100-499/500", 100, 500))
         assertFalse(GitHubUpdateCore.matchingContentRange("bytes 100-400/500", 100, 500))

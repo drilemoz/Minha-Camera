@@ -1,3 +1,16 @@
+# Minha Câmera 1.4.85 (versionCode 95)
+
+- GitHub Releases oferece um único APK universal assinado, pronto para baixar como `.apk`.
+- Nenhum ZIP ou outro arquivo é anexado pelo workflow à Release. Os APKs específicos por arquitetura continuam no Actions.
+- Mantido o caminho de download usado pelo atualizador do aplicativo.
+
+# Minha Câmera 1.4.84 (versionCode 94)
+
+- Releases automáticas após build assinado e verificado na main. Os APKs continuam disponíveis também nos artefatos do Actions.
+- A tela Atualizações explica quando existe só o build e ainda não existe uma Release com APK.
+- O app consulta ao abrir, a cada dois minutos em primeiro plano e quando solicitado manualmente.
+- Mantidos diagnóstico, captura, gravação e tela cheia da lente.
+
 # Minha Câmera 1.4.83 (versionCode 93)
 
 - Tela de conexão com etapa atual, tempo decorrido, tentativa e previsão da primeira imagem quando há histórico.

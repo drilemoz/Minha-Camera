@@ -20,10 +20,15 @@ import java.security.MessageDigest
 internal class GitHubUpdateClient(private val context: Context) {
     val directory = File(context.cacheDir, "github-updates")
 
-    fun check(installed: String): GitHubUpdateRelease? {
-        val connection = open(GitHubUpdateCore.API_URL, asset = false)
+    private data class ReleaseCache(val installed: String, val etag: String?, val catalog: GitHubUpdateCatalog)
+    private var releaseCache: ReleaseCache? = null
+
+    fun check(installed: String): GitHubUpdateCatalog {
+        val cached = releaseCache?.takeIf { it.installed == installed }
+        val connection = open(GitHubUpdateCore.API_URL, asset = false, etag = cached?.etag)
         try {
             val status = connection.responseCode
+            if (status == HttpURLConnection.HTTP_NOT_MODIFIED && cached != null) return cached.catalog
             if (status != 200) {
                 if (status == 429 || (status == 403 && connection.getHeaderField("X-RateLimit-Remaining") == "0"))
                     throw UpdateProblem("O GitHub limitou as consultas. Tente novamente mais tarde.")
@@ -40,7 +45,9 @@ internal class GitHubUpdateClient(private val context: Context) {
                 }
                 result.toString()
             }
-            return GitHubUpdateCore.parseReleases(payload, installed)
+            val catalog = GitHubUpdateCore.inspectReleases(payload, installed)
+            releaseCache = ReleaseCache(installed, connection.getHeaderField("ETag"), catalog)
+            return catalog
         } finally { connection.disconnect() }
     }
 
@@ -192,7 +199,7 @@ internal class GitHubUpdateClient(private val context: Context) {
             ?: throw UpdateProblem("Sem internet para acessar o GitHub. A rede da câmera pode continuar funcionando.")
     }
 
-    private fun open(url: String, asset: Boolean, offset: Long = 0): HttpURLConnection {
+    private fun open(url: String, asset: Boolean, offset: Long = 0, etag: String? = null): HttpURLConnection {
         val network = internetNetwork()
         var destination = URL(url)
         repeat(if (asset) 6 else 1) {
@@ -207,7 +214,10 @@ internal class GitHubUpdateClient(private val context: Context) {
                 readTimeout = 12_000
                 setRequestProperty("User-Agent", "MinhaCamera-Android")
                 setRequestProperty("Accept-Encoding", "identity")
-                if (!asset) setRequestProperty("Accept", "application/vnd.github+json")
+                if (!asset) {
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                    if (!etag.isNullOrBlank()) setRequestProperty("If-None-Match", etag)
+                }
                 if (offset > 0) setRequestProperty("Range", "bytes=$offset-")
             }
             try {

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Ground a GitHub Release in the same commit and stable signer used by the build."""
+import argparse
 import hashlib
 import json
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,5 +32,34 @@ def prepare(folder: Path, root: Path = ROOT):
     assert block and block["body"].strip(), "Notas da versão não encontradas"
     (folder / "notes.md").write_text(block["body"].strip() + "\n")
 
+def verify_published(folder: Path, release_path: Path, existing: bool = False):
+    report = json.loads((folder / "apk-report.json").read_text())
+    version = report["identity"][2]
+    release = json.loads(release_path.read_text())
+    tag = f"v{version}"
+    assert release["tag_name"] == tag and release["draft"] is False, "Release não publicada"
+    prefix = f"https://github.com/drilemoz/Minha-Camera/releases/download/{tag}/"
+    name = f"MinhaCamera-{version}-universal.apk"
+    assets = release["assets"]
+    # GitHub generates source-code links separately. Only the directly attached APK counts here.
+    assert len(assets) == 1 and assets[0]["name"] == name, "A Release deve anexar exclusivamente o APK universal"
+    asset = assets[0]
+    expected = next(entry for entry in report["apks"] if entry["file"] == name)
+    assert asset["state"] == "uploaded" and asset["browser_download_url"] == prefix + name, name
+    assert 0 < asset["size"] <= 200 * 1024 * 1024, "Tamanho do APK universal fora dos limites do atualizador"
+    digest = asset.get("digest") or ""
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", digest), f"SHA-256 indisponível: {name}"
+    if not existing:
+        assert asset["size"] == expected["size_bytes"], f"Tamanho divergente: {name}"
+        assert digest == "sha256:" + expected["sha256"], f"SHA-256 divergente: {name}"
+
 if __name__ == "__main__":
-    prepare(Path(sys.argv[1]))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("folder", type=Path)
+    parser.add_argument("--verify-published", type=Path)
+    parser.add_argument("--existing", action="store_true", help="Exige assets válidos, sem comparar novo build com anterior.")
+    args = parser.parse_args()
+    if args.verify_published:
+        verify_published(args.folder, args.verify_published, args.existing)
+    else:
+        prepare(args.folder)

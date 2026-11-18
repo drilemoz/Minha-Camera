@@ -1,3 +1,16 @@
+## 1.4.85+95 — 2026-11-18
+
+- GitHub Releases anexa exclusivamente o APK universal assinado, sem ZIP, checksums ou outras arquiteturas como anexos.
+- Os cinco APKs continuam sendo compilados e verificados no Actions. A CI confere o nome, URL, tamanho e SHA-256 do único APK publicado.
+- Os links automáticos de código-fonte gerados pelo GitHub são separados e não são usados pelo atualizador.
+
+## 1.4.84+94 — 2026-11-18
+
+- Corrigida a distribuição. Builds verificados na main do repositório oficial publicam automaticamente os cinco APKs assinados no GitHub Releases. A marcação manual continua disponível.
+- A publicação confirma tag, nome, tamanho e hash SHA-256 dos APKs oferecidos pelo GitHub. Revisões superadas são ignoradas e APKs já publicados não são sobrescritos.
+- O atualizador distingue ausência de Release, falta de APK compatível e presença de versão mais nova. Consulta ao entrar e a cada 2 min com o app aberto.
+- Mantidos RTSP, diagnóstico, gravação e confirmação da instalação no Android.
+
 ## 1.4.83+93 — 2026-11-18
 
 - Painel visual de conexão com etapa, fluxo, transporte, porcentagem do limite da tentativa, relógio e previsão baseada no histórico local.
