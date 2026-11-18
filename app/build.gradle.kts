@@ -9,12 +9,18 @@ android {
     namespace = "com.minhacamera"
     compileSdk = 36
 
+    buildFeatures { buildConfig = true }
+
     defaultConfig {
         applicationId = "com.minhacamera"
         minSdk = 24
         targetSdk = 34
-        versionCode = 90
-        versionName = "1.4.80"
+        versionCode = 91
+        versionName = "1.4.81"
+        val signer = rootProject.file("docs/SIGNING_CERT_SHA256.txt").readText().trim()
+            .replace(":", "").lowercase()
+        require(Regex("[0-9a-f]{64}").matches(signer)) { "Certificado de Release inválido" }
+        buildConfigField("String", "UPDATE_SIGNER_SHA256", "\"$signer\"")
     }
 
     // O AAR LibVLC 3.7.7 contém as quatro ABIs; manter x86 para compatibilidade.
@@ -61,6 +67,8 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.appcompat:appcompat:1.7.0")

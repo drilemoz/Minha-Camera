@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publicar os APKs verificados em GitHub Releases'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,6 +51,7 @@ jobs:
       - name: Verificar versionamento e compatibilidade do build
         run: |
           python3 scripts/check_version.py
+          python3 -m unittest discover -s tests -p test_github_updater_1481.py -q
           python3 -m unittest discover -s tests -p test_rtsp_form_1480.py -q
           python3 -m unittest discover -s tests -p test_gradle_registration_1476.py -q
           python3 -m unittest discover -s tests -p test_release_and_version_1471.py -q
@@ -150,8 +157,60 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
 
+      - name: Preparar lote verificado para GitHub Releases
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main' && github.repository == 'drilemoz/Minha-Camera'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-verificado
+          path: |
+            dist/*.apk
+            dist/SHA256SUMS
+            dist/apk-report.json
+          if-no-files-found: error
+
       - name: Limpar chave privada do runner
         if: always()
         shell: bash
         run: |
           rm -f "${RUNNER_TEMP}/minha-camera-release.p12" "${RUNNER_TEMP}/minha-camera-cert.der"
+
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main' && github.repository == 'drilemoz/Minha-Camera'
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    concurrency:
+      group: minha-camera-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-verificado
+          path: release
+      - name: Publicar apenas uma versão nova e verificada
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare_github_release.py release
+          (cd release && sha256sum --check SHA256SUMS)
+          version=$(jq -r '.identity[2]' release/apk-report.json)
+          tag="v$version"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag já existe. Não sobrescrevemos APKs publicados."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag já existe. Confira a revisão antes de publicar."
+            exit 1
+          else
+            rc=$?
+            test "$rc" -eq 2
+          fi
+          gh release create "$tag" release/*.apk release/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Minha Câmera $version" --notes-file release/notes.md

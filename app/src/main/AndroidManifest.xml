@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
@@ -27,6 +28,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MinhaCamera">
 
+        <activity android:name=".GitHubUpdatesActivity" android:exported="false" />
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".ThemeSettingsActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />
@@ -68,6 +70,10 @@
         <activity android:name=".RecordingsActivity" android:exported="false" />
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.recordings" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/recording_paths" />
+        </provider>
+        <provider android:name=".UpdateApkProvider" android:authorities="${applicationId}.update-apk"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/github_update_paths" />
         </provider>
     </application>
 </manifest>

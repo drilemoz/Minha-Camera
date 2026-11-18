@@ -1,3 +1,11 @@
+## 1.4.81+91 — 2026-11-18
+
+- Atualizador inspirado no Uai Cortes 0.1.307, com repositório fixo, consulta ao abrir e a cada 15 minutos em uso, download automático opcional, progresso, velocidade, pausar/retomar, parar e reiniciar.
+- Notas da Release e versões intermediárias. APK universal validado por SHA-256, versão, pacote e certificado permanente antes da confirmação no Android.
+- Consulta e download usam uma rede com internet sem alterar a rota local das câmeras.
+- GitHub Actions pode publicar uma Release verificada por execução manual, mantendo a distribuição por ABI.
+- Mantidos o formulário RTSP da 1.4.80 e o player. Build e instalação Android pendentes.
+
 ## 1.4.80+90 — 2026-11-17
 
 - Formulário de câmera encontrado, manual e edição passam a compartilhar o bloco de acesso e o seletor RTSP.

@@ -1,4 +1,6 @@
-**Novo em 1.4.80:** novo formulário de câmera RTSP com seção de acesso e seletor separado para modo automático, sugestões ou caminho digitado. O teclado fica fechado na abertura do formulário e ao escolher sugestões. A porta e o caminho separados ficam ocultos para URL completa. A reprodução não foi alterada. Veja [validação e análise de abertura RTSP](docs/VALIDATION_1_4_80.md).
+**Novo em 1.4.81:** atualizador interno com fonte fixa em `drilemoz/Minha-Camera`. Verifica ao abrir e a cada 15 minutos com o app em uso, com intervalo mínimo na reentrada. Em Configurações → Atualizações, escolha baixar automaticamente, acompanhe o progresso, pause/retome, pare, reinicie e leia as notas. O app valida o APK antes de abrir o instalador Android. Veja [como publicar e testar a atualização](docs/GITHUB_UPDATES.md).
+
+**Anterior em 1.4.80:** novo formulário de câmera RTSP com seção de acesso e seletor separado para modo automático, sugestões ou caminho digitado. O teclado fica fechado na abertura do formulário e ao escolher sugestões. A porta e o caminho separados ficam ocultos para URL completa. A reprodução não foi alterada. Veja [validação e análise de abertura RTSP](docs/VALIDATION_1_4_80.md).
 
 **Anterior em 1.4.79:** Build APK 77: corrigida importação de `PixelCopy` no visualizador RTSP, de `android.graphics` para `android.view`, permitindo compilar a função de captura JPEG. Adicionado teste preventivo da API. Media3 RTSP e gravação RTSP em MP4 permanecem pendentes. Compilação Android e testes no aparelho ainda não executados.
 
@@ -16,7 +18,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.80 (versionCode 90)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.81 (versionCode 91)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

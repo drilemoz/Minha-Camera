@@ -1,3 +1,11 @@
+# Minha Câmera 1.4.81 (versionCode 91)
+
+- Atualizações direto do GitHub, sem preencher link ou token.
+- Checagem ao abrir e periodicamente enquanto usa o app. Download automático pode ser desligado em Configurações → Atualizações.
+- Notas das versões, progresso, pausar, retomar, parar e reiniciar a transferência.
+- Verificação do APK e instalação pelo Android, com confirmação do usuário.
+- Preservado o formulário RTSP da 1.4.80.
+
 # Minha Câmera 1.4.80 (versionCode 90)
 
 - **Configurar câmera:** usuário, senha e as ações de copiar e colar ficam em uma seção própria.

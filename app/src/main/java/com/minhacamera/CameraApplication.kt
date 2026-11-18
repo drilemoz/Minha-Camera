@@ -9,9 +9,12 @@ import java.util.Locale
 
 /** Diagnóstico privado de crashes Java/Kotlin. Não captura SIGSEGV de bibliotecas nativas. */
 class CameraApplication : Application() {
+    internal val updates by lazy { GitHubUpdateManager(this) }
+
     override fun onCreate() {
         super.onCreate()
         CameraTheme.apply(this)
+        registerActivityLifecycleCallbacks(updates)
         try { PhoneStreamDiagnostics.initialize(this) } catch (_: Exception) { }
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->

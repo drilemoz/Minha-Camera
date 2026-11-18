@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var listView: ListView
     private lateinit var adapter: CameraAdapter
     private var cams = mutableListOf<Camera>()
+    private val updatePrompt by lazy { HomeUpdatePrompt(this, (application as CameraApplication).updates) }
     private val remoteDetails = mutableMapOf<String, String>()
 
     private var scanDialog: AlertDialog? = null
@@ -189,6 +190,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        updatePrompt.attach()
         cams = store.load()
         refresh()
         refreshDeviceMetadata()
@@ -196,6 +198,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        updatePrompt.detach()
         scannerView?.pause()
         super.onPause()
     }

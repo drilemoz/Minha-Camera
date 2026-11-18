@@ -55,6 +55,9 @@ class SettingsActivity : AppCompatActivity() {
         addAction(content, getString(R.string.settings_theme), getString(R.string.settings_theme_detail)) {
             startActivity(Intent(this, ThemeSettingsActivity::class.java))
         }
+        addAction(content, getString(R.string.app_updates), getString(R.string.app_updates_summary)) {
+            startActivity(Intent(this, GitHubUpdatesActivity::class.java))
+        }
         addAction(content, getString(R.string.settings_about), getString(R.string.settings_about_detail)) {
             startActivity(Intent(this, AboutActivity::class.java))
         }
