@@ -92,7 +92,6 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var videoClip: FrameLayout
     private lateinit var videoContainer: FrameLayout
     private lateinit var fullscreenActions: View
-    private lateinit var cropNotice: TextView
     private lateinit var lensBadge: TextView
     private var urls: List<String> = emptyList()
     private var index = 0
@@ -116,6 +115,10 @@ class PlayerActivity : AppCompatActivity() {
     private var displayMode = 0 // full frame, upper half, lower half; never zoom
     private var videoGeometry: VideoGeometry.Aspect? = null
     private val videoAspect: Double get() = videoGeometry?.value ?: 0.0
+    private val effectiveVideoAspect: Double
+        get() = VideoGeometry.aspectForDisplay(videoAspect, displayMode != 0)
+    private val usesStackedLensPreset: Boolean
+        get() = VideoGeometry.usesStackedLensPreset(videoAspect, displayMode != 0)
     private var geometryRetry: Runnable? = null
     private var vlcTexture: TextureView? = null
     private var vlcTextureListener: View.OnLayoutChangeListener? = null
@@ -145,7 +148,6 @@ class PlayerActivity : AppCompatActivity() {
     private var lastVlcBufferEvent = -1
     private val journalId = UUID.randomUUID().toString()
     private var lastGeometry = ""
-    private var lastCropFallback = false
     private val timingPrefs by lazy { getSharedPreferences("rtsp_first_frame", MODE_PRIVATE) }
     private val journalPrefs by lazy { getSharedPreferences("rtsp_session_journal", MODE_PRIVATE) }
     private var reportRefreshScheduled = false
@@ -351,6 +353,7 @@ class PlayerActivity : AppCompatActivity() {
             "Estatísticas VLC: $lastVlcStats",
             "Vídeo recebido: ${if (videoReady) "sim" else "não"}",
             "Exibição: ${displayLabels()[displayMode]} · proporção do vídeo: $videoAspect",
+            "Proporção aplicada: $effectiveVideoAspect · fonte: ${if (usesStackedLensPreset) "lentes 16:9 (padrão)" else videoGeometry?.source?.name ?: "indisponível"}",
             "Endereços configurados: ${urls.size}"
         )
         lines.addAll(safeAddresses)
@@ -418,7 +421,6 @@ class PlayerActivity : AppCompatActivity() {
         videoClip = findViewById(R.id.videoClip)
         videoContainer = findViewById(R.id.videoContainer)
         fullscreenActions = findViewById(R.id.fullscreenActions)
-        cropNotice = findViewById(R.id.cropNotice)
         lensBadge = findViewById(R.id.lensBadge)
         val main = intent.getStringExtra("url").orEmpty()
         val alternatives = intent.getStringArrayExtra("alts")?.toList().orEmpty()
@@ -497,7 +499,7 @@ class PlayerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.pip_stop_recording, Toast.LENGTH_LONG).show()
             return
         }
-        val aspect = VideoGeometry.displayedAspect(videoAspect, displayMode != 0)
+        val aspect = VideoGeometry.displayedAspect(effectiveVideoAspect, displayMode != 0)
         val ratio = if (aspect != null && aspect in 0.43..2.30)
             Rational((aspect * 1000).toInt().coerceAtLeast(1), 1000) else Rational(16, 9)
         if (!PipSupport.enter(this, if (displayMode != 0 && aspect != null) videoClip else viewport, ratio)) {
@@ -685,7 +687,7 @@ class PlayerActivity : AppCompatActivity() {
                 dialog.dismiss()
                 vlcPlayer?.let { readVlcVideoSize(it) }
                 applyDisplayMode()
-                event("Exibição selecionada: ${choices[which]} · proporção $videoAspect")
+                event("Exibição selecionada: ${choices[which]} · proporção aplicada $effectiveVideoAspect")
                 if (which != 0) requestVlcVideoSize()
             }.show()
     }
@@ -721,15 +723,12 @@ class PlayerActivity : AppCompatActivity() {
         viewport.isClickable = fullscreen && !pipVisible
         engineText.visibility = if (fullscreen || pipVisible) View.GONE else View.VISIBLE
         recordTimer.visibility = if (!pipVisible && recordingConfirmed) View.VISIBLE else View.GONE
-        val waitingForCrop = videoReady && displayMode > 0 && VideoGeometry.displayedAspect(videoAspect, true) == null
-        lensBadge.visibility = if (videoReady && !pipVisible && displayMode > 0 && !waitingForCrop && (!fullscreen || showFullscreenActions))
+        lensBadge.visibility = if (videoReady && !pipVisible && displayMode > 0 && (!fullscreen || showFullscreenActions))
             View.VISIBLE else View.GONE
-        if (displayMode > 0) lensBadge.setText(
-            if (displayMode == 1) R.string.player_lens_upper else R.string.player_lens_lower
-        )
-        cropNotice.visibility = if (waitingForCrop && !pipVisible) View.VISIBLE else View.GONE
-        if (waitingForCrop && !lastCropFallback) event("Imagem inteira mantida: recorte aguardando dimensões da faixa")
-        lastCropFallback = waitingForCrop
+        if (displayMode > 0) {
+            val label = getString(if (displayMode == 1) R.string.player_lens_upper else R.string.player_lens_lower)
+            lensBadge.text = if (usesStackedLensPreset) getString(R.string.player_lens_nominal, label) else label
+        }
     }
 
     private fun configureControls() {
@@ -755,7 +754,7 @@ class PlayerActivity : AppCompatActivity() {
         if (geometryChanged || previous?.source != source) {
             videoGeometry = VideoGeometry.Aspect(aspect, source)
             event("Dimensões de vídeo: ${width}×$height · fonte=${source.name}")
-            if (geometryChanged) applyDisplayMode()
+            applyDisplayMode()
         }
         return true
     }
@@ -819,7 +818,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun applyDisplayMode() {
         val frame = if (displayMode > 0)
-            VideoGeometry.fitHalf(viewport.width, viewport.height, videoAspect, displayMode == 2)
+            VideoGeometry.fitHalf(viewport.width, viewport.height, effectiveVideoAspect, displayMode == 2)
         else VideoGeometry.fitFull(viewport.width, viewport.height, videoAspect)
         val clipParams = videoClip.layoutParams as FrameLayout.LayoutParams
         val clipWidth = frame?.width ?: FrameLayout.LayoutParams.MATCH_PARENT
@@ -836,7 +835,10 @@ class PlayerActivity : AppCompatActivity() {
             videoContainer.layoutParams = params
         }
         videoContainer.translationY = frame?.videoTop ?: 0f
-        val geometry = if (frame != null) "${frame.width}×${frame.clipHeight} · modo $displayMode · tela cheia=$fullscreen · PiP=$pipVisible" else ""
+        val geometry = if (frame != null) {
+            val source = if (usesStackedLensPreset) " · padrão de lente 16:9" else ""
+            "${frame.width}×${frame.clipHeight} · modo $displayMode · tela cheia=$fullscreen · PiP=$pipVisible$source"
+        } else ""
         if (geometry.isNotBlank() && geometry != lastGeometry) event("Área visível: $geometry")
         lastGeometry = geometry
         exoView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT

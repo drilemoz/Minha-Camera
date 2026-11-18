@@ -36,14 +36,15 @@ class LensFullscreenTests(unittest.TestCase):
         self.assertNotIn("resetAndPlay", chooser)
         self.assertIn('if (fullscreen || pipVisible) View.GONE else View.VISIBLE', fullscreen)
 
-    def test_unknown_dimensions_keep_live_picture_and_show_compact_notice(self):
-        status = next(v for v in self.layout.iter() if v.get(ANDROID + "id") == "@+id/cropNotice")
-        self.assertEqual(status.get(ANDROID + "background"), "@drawable/player_badge")
-        self.assertEqual(status.get(ANDROID + "layout_height"), "wrap_content")
-        self.assertIn("cropNotice.visibility = if (waitingForCrop && !pipVisible)", self.player)
-        self.assertIn("Imagem inteira mantida: recorte aguardando dimensões", self.player)
+    def test_unknown_dimensions_use_the_stacked_preset_without_covering_video(self):
+        badge = next(v for v in self.layout.iter() if v.get(ANDROID + "id") == "@+id/lensBadge")
+        self.assertEqual(badge.get(ANDROID + "layout_height"), "wrap_content")
+        self.assertFalse(any(v.get(ANDROID + "id") == "@+id/cropNotice" for v in self.layout.iter()))
+        self.assertIn("VideoGeometry.aspectForDisplay(videoAspect, displayMode != 0)", self.player)
+        self.assertIn("if (usesStackedLensPreset) getString(R.string.player_lens_nominal, label)", self.player)
         apply = self.function("    private fun applyDisplayMode()", "    private fun identifyCamera()")
-        self.assertIn("frame?.videoTop ?: 0f", apply)
+        self.assertIn("effectiveVideoAspect, displayMode == 2", apply)
+        self.assertIn("VideoGeometry.fitFull(viewport.width, viewport.height, videoAspect)", apply)
         self.assertNotIn("vlcView.visibility =", apply)
 
     def test_rotation_updates_geometry_without_reconnecting_or_changing_lens(self):
@@ -75,7 +76,7 @@ class LensFullscreenTests(unittest.TestCase):
     def test_capture_and_pip_use_correct_output(self):
         self.assertIn("texture.getBitmap", self.player)
         self.assertIn("PixelCopy.request(surface, bitmap,", self.player)
-        self.assertIn("VideoGeometry.displayedAspect(videoAspect, displayMode != 0)", self.player)
+        self.assertIn("VideoGeometry.displayedAspect(effectiveVideoAspect, displayMode != 0)", self.player)
         self.assertIn("if (displayMode != 0 && aspect != null) videoClip else viewport", self.player)
         start_recording = self.function("    private fun beginRecording()", "    private fun tickRecording(")
         self.assertNotIn("displayMode", start_recording)

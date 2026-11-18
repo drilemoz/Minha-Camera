@@ -30,6 +30,17 @@ object VideoGeometry {
         return aspect.takeIf { it.isFinite() && it > 0 }
     }
 
+    /**
+     * Selecting a lens explicitly declares a vertically stacked layout. When the
+     * renderer supplies no dimensions, start with two standard 16:9 halves.
+     * Do not use this assumption for the unmodified, full-image mode.
+     */
+    fun usesStackedLensPreset(videoAspect: Double, singleLens: Boolean): Boolean =
+        singleLens && displayedAspect(videoAspect, true) == null
+
+    fun aspectForDisplay(videoAspect: Double, singleLens: Boolean): Double =
+        if (usesStackedLensPreset(videoAspect, singleLens)) 8.0 / 9.0 else videoAspect
+
     fun fitFull(viewWidth: Int, viewHeight: Int, videoAspect: Double): Frame? =
         fit(viewWidth, viewHeight, videoAspect, singleLens = false, lower = false)
 

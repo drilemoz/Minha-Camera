@@ -1,3 +1,8 @@
+# Minha Câmera 1.4.89 (versionCode 99)
+
+- Alterna entre imagem inteira, lente superior e lente inferior mesmo em câmeras que não informam o tamanho do vídeo.
+- Sem dimensões conhecidas, a escolha de lente usa o recorte padrão de duas imagens 16:9 empilhadas, sem reconectar.
+
 # Minha Câmera 1.4.88 (versionCode 98)
 
 - Tela cheia automática no visualizador IP ao girar para horizontal, sem trocar a lente nem reconectar.

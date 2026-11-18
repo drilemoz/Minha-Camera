@@ -1,3 +1,9 @@
+## 1.4.89+99 — 2026-11-18
+
+- Lente superior ou inferior passa a aplicar o recorte imediatamente, mesmo sem dimensões fornecidas pelo LibVLC.
+- Se a proporção real estiver indisponível, recorta duas metades 16:9 empilhadas. Quando a proporção real chegar, tem prioridade. Imagem inteira não recebe a estimativa.
+- Mantidos rotação, sessão de vídeo, captura integral, gravação e PiP.
+
 ## 1.4.88+98 — 2026-11-18
 
 - O visualizador IP abre tela cheia ao girar para horizontal. Ao voltar para vertical encerra apenas o modo automático. A tela cheia manual permanece ativa até o toque em Sair.

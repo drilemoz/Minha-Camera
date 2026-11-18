@@ -275,6 +275,23 @@ private fun checkVideoGeometry() {
     val oneLens = VideoGeometry.fitHalf(1536, 691, source, true)!!
     check(oneLens.width > fullWidth.width && oneLens.clipHeight == 691)
     check(oneLens.videoTop == -691f)
+    check(VideoGeometry.aspectForDisplay(0.0, singleLens = false) == 0.0)
+    check(VideoGeometry.aspectForDisplay(0.75, singleLens = true) == 0.75)
+    check(!VideoGeometry.usesStackedLensPreset(0.0, singleLens = false))
+    check(!VideoGeometry.usesStackedLensPreset(0.75, singleLens = true))
+    for (missing in listOf(0.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+        check(VideoGeometry.usesStackedLensPreset(missing, singleLens = true))
+        val guessed = VideoGeometry.aspectForDisplay(missing, singleLens = true)
+        check(VideoGeometry.displayedAspect(guessed, true) == 16.0 / 9.0)
+        for ((vw, vh) in listOf(1536 to 691, 691 to 1100)) {
+            val upper = VideoGeometry.fitHalf(vw, vh, guessed, false)!!
+            val lower = VideoGeometry.fitHalf(vw, vh, guessed, true)!!
+            check(upper.width in 1..vw && upper.clipHeight in 1..vh)
+            check(upper.videoTop == 0f && lower.videoTop == -upper.clipHeight.toFloat())
+            check(upper.videoHeight == upper.clipHeight * 2)
+            check(lower.videoTop + lower.videoHeight == lower.clipHeight.toFloat())
+        }
+    }
     val auto = VideoGeometry.afterRotation(VideoGeometry.Fullscreen.OFF, true)
     check(auto == VideoGeometry.Fullscreen.ROTATION)
     check(VideoGeometry.afterRotation(auto, false) == VideoGeometry.Fullscreen.OFF)
