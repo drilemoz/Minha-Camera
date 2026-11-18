@@ -15,8 +15,8 @@ android {
         applicationId = "com.minhacamera"
         minSdk = 24
         targetSdk = 34
-        versionCode = 96
-        versionName = "1.4.86"
+        versionCode = 97
+        versionName = "1.4.87"
         val signer = rootProject.file("docs/SIGNING_CERT_SHA256.txt").readText().trim()
             .replace(":", "").lowercase()
         require(Regex("[0-9a-f]{64}").matches(signer)) { "Certificado de Release inválido" }

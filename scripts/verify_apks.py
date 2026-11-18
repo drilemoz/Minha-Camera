@@ -10,7 +10,11 @@ import shutil
 import subprocess
 from zipfile import ZipFile
 
-from release_apk_policy import check_native_compression, require_updater_apk_size
+# Suporta tanto o caminho de CLI usado pela CI como o import do pacote.
+if __package__:
+    from .release_apk_policy import check_native_compression, require_updater_apk_size
+else:
+    from release_apk_policy import check_native_compression, require_updater_apk_size
 
 ABIS = {'armeabi-v7a', 'arm64-v8a', 'x86_64', 'x86'}
 LIBS = {'libvlc.so', 'libvlcjni.so', 'libc++_shared.so'}

@@ -7,7 +7,8 @@
 - Não usar credenciais reais em logs, testes ou repositório.
 - Documentar os resultados úteis para migração futura ao Vigia IA, sem modificar esse segundo aplicativo automaticamente.
 
-- Versão atual: 1.4.86+96. APKs diretos compartilham versionCode 96; não aplicar offsets por ABI.
+- Versão atual: 1.4.87+97. APKs diretos compartilham versionCode 97; não aplicar offsets por ABI.
+- Repetir a etapa Python de preflight na mesma ordem da CI, com cada comando em processo separado. A descoberta global não substitui os testes isolados.
 - O APK universal deve caber em 200 MiB (209.715.200 bytes), inclusive para atualizar a 1.4.81. Empacotar as bibliotecas nativas compactadas. Bloquear antes do upload se exceder o limite. Não substituir a Release 1.4.85.
 - Manter Universal e splits das quatro ABIs fornecidas pelo LibVLC; verificar o AAR e os APKs.
 - Executar `gradle testProtocol testReleaseUnitTest assembleRelease --build-cache` uma única vez; depois `scripts/verify_apks.py`.

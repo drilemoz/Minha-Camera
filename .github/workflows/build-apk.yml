@@ -67,7 +67,6 @@ jobs:
           python3 -m unittest discover -s tests -p test_android_resources.py -q
           python3 scripts/check_build_config.py
           python3 -m unittest discover -s tests -p test_release_apk_size_1486.py -q
-          python3 -m unittest discover -s tests -p test_auto_release_1484.py -q
           python3 scripts/check_protocol_sources.py
           python3 scripts/check_kotlin_imports.py
           python3 -m unittest discover -s tests -p test_player_pixelcopy_1479.py -q

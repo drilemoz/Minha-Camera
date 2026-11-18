@@ -1,3 +1,9 @@
+## 1.4.87+97 — 2026-11-18
+
+- Build APK #84: o teste isolado do atualizador não conseguia importar a política de tamanho e interrompia o preflight.
+- Corrigidas as importações no teste e nos scripts. Validados os modos de execução por caminho e por módulo. Eliminada uma chamada duplicada de teste no workflow.
+- Mantidas a compactação nativa, as quatro arquiteturas, a assinatura e a publicação de um único APK universal.
+
 ## 1.4.86+96 — 2026-11-18
 
 - Corrigida a causa da falha do Build APK #83: o universal da 1.4.85 tinha 218.391.269 bytes, acima do limite de 209.715.200 bytes nas versões instaladas.

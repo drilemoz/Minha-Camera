@@ -2,6 +2,9 @@
 import io
 from pathlib import Path
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
@@ -25,6 +28,19 @@ class ReleaseApkSizeTest(unittest.TestCase):
         for size in (0, 218_391_269, MAX_UPDATER_APK_BYTES + 1):
             with self.subTest(size=size), self.assertRaises(ValueError):
                 require_updater_apk_size(size)
+
+    def test_release_tools_support_cli_path_and_package_mode(self):
+        for script in ("prepare_github_release", "verify_apks"):
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as private_cwd:
+                # CI chama o arquivo, enquanto testes podem importar scripts pelo pacote.
+                by_path = [str(ROOT / "scripts" / f"{script}.py"), "--help"]
+                by_module = ["-m", f"scripts.{script}", "--help"]
+                for args, cwd in ((by_path, private_cwd), (by_module, ROOT)):
+                    result = subprocess.run(
+                        [sys.executable, *args], cwd=cwd, capture_output=True, text=True
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("usage:", result.stdout)
 
     def test_gradle_requests_compressed_jni_packaging(self):
         gradle = (ROOT / "app/build.gradle.kts").read_text()

@@ -1,11 +1,12 @@
 import hashlib
-import importlib.util
 import json
 import re
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from scripts import prepare_github_release as prepare_release
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app/src/main"
@@ -14,10 +15,6 @@ NS = "{http://schemas.android.com/apk/res/android}"
 
 def source(filename):
     return (SRC / filename).read_text()
-
-spec = importlib.util.spec_from_file_location("prepare_github_release", ROOT / "scripts/prepare_github_release.py")
-prepare_release = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(prepare_release)
 
 class UpdateContractTest(unittest.TestCase):
     def test_source_is_fixed_and_connected_to_foreground(self):

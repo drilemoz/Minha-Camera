@@ -6,7 +6,11 @@ import json
 import re
 from pathlib import Path
 
-from release_apk_policy import require_updater_apk_size
+# Suporta tanto o caminho de CLI usado pela CI como o import do pacote.
+if __package__:
+    from .release_apk_policy import require_updater_apk_size
+else:
+    from release_apk_policy import require_updater_apk_size
 
 ROOT = Path(__file__).resolve().parents[1]
 ABIS = ("universal", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
