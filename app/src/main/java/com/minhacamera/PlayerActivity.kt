@@ -6,6 +6,8 @@ import android.view.PixelCopy
 import android.os.Environment
 import android.provider.MediaStore
 import android.view.SurfaceView
+import android.view.TextureView
+import android.view.ViewGroup
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -79,6 +81,9 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var viewport: FrameLayout
     private lateinit var videoClip: FrameLayout
     private lateinit var videoContainer: FrameLayout
+    private lateinit var fullscreenActions: View
+    private lateinit var cropNotice: TextView
+    private lateinit var lensBadge: TextView
     private var urls: List<String> = emptyList()
     private var index = 0
     private var engine = Engine.VLC
@@ -94,6 +99,7 @@ class PlayerActivity : AppCompatActivity() {
     private var failedGeneration = -1
     private var videoReady = false
     private var fullscreen = false
+    private var showFullscreenActions = true
     private var pipVisible = false
     private var displayMode = 0 // full frame, upper half, lower half; never zoom
     private var videoAspect = 0.0
@@ -237,6 +243,7 @@ class PlayerActivity : AppCompatActivity() {
             "Último estado do VLC: $lastVlcState",
             "Estatísticas VLC: $lastVlcStats",
             "Vídeo recebido: ${if (videoReady) "sim" else "não"}",
+            "Exibição: ${displayLabels()[displayMode]} · proporção do vídeo: $videoAspect",
             "Endereços configurados: ${urls.size}"
         )
         lines.addAll(safeAddresses)
@@ -284,6 +291,9 @@ class PlayerActivity : AppCompatActivity() {
         viewport = findViewById(R.id.videoViewport)
         videoClip = findViewById(R.id.videoClip)
         videoContainer = findViewById(R.id.videoContainer)
+        fullscreenActions = findViewById(R.id.fullscreenActions)
+        cropNotice = findViewById(R.id.cropNotice)
+        lensBadge = findViewById(R.id.lensBadge)
         val main = intent.getStringExtra("url").orEmpty()
         val alternatives = intent.getStringArrayExtra("alts")?.toList().orEmpty()
         urls = (listOf(main) + alternatives).filter { CameraStreamProtocol.isSupported(it) }.distinct()
@@ -298,19 +308,25 @@ class PlayerActivity : AppCompatActivity() {
         event("Visualizador iniciado; sessão local")
         recordButton.setOnClickListener { onRecordClick() }
         findViewById<View>(R.id.btnRecordings).setOnClickListener { startActivity(Intent(this, RecordingsActivity::class.java)) }
-        findViewById<View>(R.id.btnDisplay).setOnClickListener {
-            AlertDialog.Builder(this).setTitle(R.string.exibicao_video).setSingleChoiceItems(arrayOf(
-                getString(R.string.imagem_inteira),
-                getString(R.string.imagem_superior), getString(R.string.imagem_inferior)
-            ), displayMode) { dialog, which -> displayMode = which; applyDisplayMode(); dialog.dismiss() }.show()
-        }
+        findViewById<View>(R.id.btnDisplay).setOnClickListener { showDisplayOptions() }
+        findViewById<View>(R.id.btnFullscreenImage).setOnClickListener { showDisplayOptions() }
+        findViewById<View>(R.id.btnFullscreenExit).setOnClickListener { setFullscreen(false) }
         findViewById<View>(R.id.btnPip).setOnClickListener { enterPip() }
-        findViewById<View>(R.id.btnFullscreen).setOnClickListener { fullscreen = !fullscreen; applyFullscreen() }
+        findViewById<View>(R.id.btnFullscreen).setOnClickListener { setFullscreen(true) }
+        viewport.setOnClickListener {
+            if (fullscreen && !pipVisible) {
+                showFullscreenActions = !showFullscreenActions
+                updateViewerChrome()
+            }
+        }
+        videoContainer.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (right-left != oldRight-oldLeft || bottom-top != oldBottom-oldTop) syncVlcWindowSize()
+        }
         viewport.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (right-left != oldRight-oldLeft || bottom-top != oldBottom-oldTop) applyDisplayMode()
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() { if (fullscreen) { fullscreen = false; applyFullscreen() } else finish() }
+            override fun handleOnBackPressed() { if (fullscreen) setFullscreen(false) else finish() }
         })
         configureControls()
         applyFullscreen()
@@ -322,11 +338,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(inPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig)
         pipVisible = inPictureInPictureMode
-        findViewById<View>(R.id.playerControls).visibility = if (pipVisible) View.GONE else View.VISIBLE
-        engineText.visibility = if (pipVisible) View.GONE else View.VISIBLE
-        recordTimer.visibility = if (pipVisible) View.GONE else if (recordingConfirmed) View.VISIBLE else View.GONE
-        if (pipVisible) toolbar.visibility = View.GONE else applyFullscreen()
-        viewport.post { applyDisplayMode() }
+        applyFullscreen()
     }
 
     private fun enterPip() {
@@ -342,16 +354,17 @@ class PlayerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.pip_stop_recording, Toast.LENGTH_LONG).show()
             return
         }
-        val ratio = if (videoAspect.isFinite() && videoAspect in 0.43..2.30)
-            Rational((videoAspect * 1000).toInt().coerceAtLeast(1), 1000) else Rational(16, 9)
-        if (!PipSupport.enter(this, viewport, ratio))
+        val aspect = VideoGeometry.displayedAspect(videoAspect, displayMode != 0)
+        val ratio = if (aspect != null && aspect in 0.43..2.30)
+            Rational((aspect * 1000).toInt().coerceAtLeast(1), 1000) else Rational(16, 9)
+        if (!PipSupport.enter(this, if (displayMode != 0 && aspect != null) videoClip else viewport, ratio))
             Toast.makeText(this, R.string.pip_unavailable, Toast.LENGTH_LONG).show()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         configureControls()
-        viewport.post { applyDisplayMode(); applyFullscreen() }
+        applyFullscreen()
     }
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.add(0, 2011, 1, "Capturar JPEG")
@@ -390,58 +403,85 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         val root = if (engine == Engine.VLC) vlcView else exoView
-        fun findSurface(view: View): SurfaceView? {
-            if (view is SurfaceView && view.visibility == View.VISIBLE) return view
-            if (view is android.view.ViewGroup) for (i in 0 until view.childCount) {
-                findSurface(view.getChildAt(i))?.let { return it }
-            }
-            return null
+        val texture = findVideoOutput(root, TextureView::class.java)
+        if (texture != null && texture.isAvailable && texture.width > 0 && texture.height > 0) {
+            // Read the decoded image, not the parent crop or screen overlays.
+            val scale = minOf(1.0, 2048.0 / maxOf(texture.width, texture.height))
+            val bitmap = try {
+                texture.getBitmap((texture.width * scale).toInt().coerceAtLeast(1),
+                    (texture.height * scale).toInt().coerceAtLeast(1))
+            } catch (_: OutOfMemoryError) { null }
+              catch (_: Exception) { null }
+            if (bitmap != null) saveJpeg(bitmap)
+            else Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
+            return
         }
-        val surface = findSurface(root)
+
+        val surface = findVideoOutput(root, SurfaceView::class.java)
         if (surface == null || surface.width <= 0 || surface.height <= 0) {
-            Toast.makeText(this, "Superfície de vídeo indisponível", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
             return
         }
         val bitmap = try { Bitmap.createBitmap(surface.width, surface.height, Bitmap.Config.ARGB_8888) }
             catch (_: OutOfMemoryError) { Toast.makeText(this, "Memória insuficiente para captura", Toast.LENGTH_LONG).show(); return }
         val capturedGeneration = generation
-        PixelCopy.request(surface, bitmap, { result ->
-            if (result != PixelCopy.SUCCESS || !active || generation != capturedGeneration) {
-                bitmap.recycle()
-                Toast.makeText(this, "Não foi possível capturar o quadro", Toast.LENGTH_LONG).show()
-                return@request
-            }
-            Thread {
-                var saved = false
-                var uri: Uri? = null
-                try {
-                    val name = "Camera_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".jpg"
-                    val values = ContentValues().apply {
-                        put(MediaStore.Images.Media.DISPLAY_NAME, name)
-                        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                        if (Build.VERSION.SDK_INT >= 29) {
-                            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Minha Câmera")
-                            put(MediaStore.Images.Media.IS_PENDING, 1)
-                        }
-                    }
-                    uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                    val target = uri ?: error("Falha ao criar imagem")
-                    contentResolver.openOutputStream(target)?.use { out ->
-                        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)) error("Falha JPEG")
-                    } ?: error("Falha ao abrir imagem")
-                    if (Build.VERSION.SDK_INT >= 29) contentResolver.update(target, ContentValues().apply {
-                        put(MediaStore.Images.Media.IS_PENDING, 0)
-                    }, null, null)
-                    saved = true
-                } catch (_: Exception) { uri?.let { runCatching { contentResolver.delete(it, null, null) } } }
-                finally { bitmap.recycle() }
-                runOnUiThread { if (!isDestroyed) Toast.makeText(this,
-                    if (saved) "Imagem JPEG salva na galeria" else "Falha ao salvar JPEG", Toast.LENGTH_LONG).show() }
-            }.start()
-        }, mainHandler)
+        try {
+            PixelCopy.request(surface, bitmap, { result ->
+                if (result == PixelCopy.SUCCESS && active && generation == capturedGeneration) saveJpeg(bitmap)
+                else {
+                    bitmap.recycle()
+                    Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
+                }
+            }, mainHandler)
+        } catch (_: IllegalArgumentException) {
+            bitmap.recycle()
+            Toast.makeText(this, R.string.player_capture_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
-    override fun onSupportNavigateUp(): Boolean { if (fullscreen) { fullscreen=false; applyFullscreen() } else finish(); return true }
+    private fun <T : View> findVideoOutput(view: View, type: Class<T>): T? {
+        if (view.visibility != View.VISIBLE) return null
+        if (type.isInstance(view)) return type.cast(view)
+        if (view is ViewGroup) for (i in 0 until view.childCount) {
+            findVideoOutput(view.getChildAt(i), type)?.let { return it }
+        }
+        return null
+    }
+
+    private fun saveJpeg(bitmap: Bitmap) {
+        Thread {
+            var saved = false
+            var uri: Uri? = null
+            try {
+                val name = "Camera_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".jpg"
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Minha Câmera")
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                }
+                uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                val target = uri ?: error("Falha ao criar imagem")
+                contentResolver.openOutputStream(target)?.use { out ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)) error("Falha JPEG")
+                } ?: error("Falha ao abrir imagem")
+                if (Build.VERSION.SDK_INT >= 29) contentResolver.update(target, ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                }, null, null)
+                saved = true
+            } catch (_: Exception) { uri?.let { runCatching { contentResolver.delete(it, null, null) } } }
+            finally { bitmap.recycle() }
+            runOnUiThread { if (!isDestroyed) Toast.makeText(this,
+                if (saved) "Imagem JPEG salva na galeria" else "Falha ao salvar JPEG", Toast.LENGTH_LONG).show() }
+        }.start()
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        if (fullscreen) setFullscreen(false) else finish()
+        return true
+    }
     override fun onStart() {
         super.onStart()
         if (!active) { active = true; resetAndPlay(Engine.VLC) }
@@ -458,15 +498,56 @@ class PlayerActivity : AppCompatActivity() {
         recoveryThread?.interrupt(); recoveryThread = null
         super.onDestroy()
     }
+    private fun displayLabels() = arrayOf(
+        getString(R.string.imagem_inteira), getString(R.string.imagem_superior), getString(R.string.imagem_inferior)
+    )
+
+    private fun showDisplayOptions() {
+        val choices = displayLabels()
+        AlertDialog.Builder(this).setTitle(R.string.exibicao_video)
+            .setSingleChoiceItems(choices, displayMode) { dialog, which ->
+                displayMode = which
+                dialog.dismiss()
+                vlcPlayer?.let { readVlcVideoSize(it) }
+                applyDisplayMode()
+                event("Exibição selecionada: ${choices[which]} · proporção $videoAspect")
+                if (which != 0 && videoAspect == 0.0) requestVlcVideoSize()
+            }.show()
+    }
+
+    private fun setFullscreen(enabled: Boolean) {
+        if (fullscreen == enabled) return
+        fullscreen = enabled
+        showFullscreenActions = true
+        applyFullscreen()
+    }
+
     private fun applyFullscreen() {
         toolbar.visibility = if (fullscreen || pipVisible) View.GONE else View.VISIBLE
         val controller = WindowInsetsControllerCompat(window, window.decorView)
-        if (fullscreen) {
+        if (fullscreen && !pipVisible) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
-        } else controller.show(WindowInsetsCompat.Type.systemBars())
-        findViewById<MaterialButton>(R.id.btnFullscreen).setText(if (fullscreen) R.string.sair_tela_cheia else R.string.tela_cheia)
+        } else if (!pipVisible) controller.show(WindowInsetsCompat.Type.systemBars())
+        updateViewerChrome()
+        viewport.post { applyDisplayMode() }
     }
+
+    private fun updateViewerChrome() {
+        findViewById<View>(R.id.playerControls).visibility = if (fullscreen || pipVisible) View.GONE else View.VISIBLE
+        fullscreenActions.visibility = if (fullscreen && !pipVisible && showFullscreenActions) View.VISIBLE else View.GONE
+        viewport.isClickable = fullscreen && !pipVisible
+        engineText.visibility = if (fullscreen || pipVisible) View.GONE else View.VISIBLE
+        recordTimer.visibility = if (!pipVisible && recordingConfirmed) View.VISIBLE else View.GONE
+        val waitingForCrop = videoReady && displayMode > 0 && VideoGeometry.displayedAspect(videoAspect, true) == null
+        lensBadge.visibility = if (videoReady && !pipVisible && displayMode > 0 && !waitingForCrop && (!fullscreen || showFullscreenActions))
+            View.VISIBLE else View.GONE
+        if (displayMode > 0) lensBadge.setText(
+            if (displayMode == 1) R.string.player_lens_upper else R.string.player_lens_lower
+        )
+        cropNotice.visibility = if (waitingForCrop) View.VISIBLE else View.GONE
+    }
+
     private fun configureControls() {
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val controls = findViewById<LinearLayout>(R.id.playerControls)
@@ -494,8 +575,29 @@ class PlayerActivity : AppCompatActivity() {
             setVideoAspect(track.width, track.height, sar, track.orientation >= 4)
         }
     }
+    private fun requestVlcVideoSize() {
+        val player = vlcPlayer ?: return
+        val current = generation
+        fun retry(remaining: Int) {
+            if (!active || generation != current || vlcPlayer !== player || videoAspect > 0 || displayMode == 0) return
+            readVlcVideoSize(player)
+            if (videoAspect == 0.0 && remaining > 0)
+                mainHandler.postDelayed({ retry(remaining - 1) }, 250L)
+        }
+        retry(8)
+    }
+
+    private fun syncVlcWindowSize() {
+        val width = videoContainer.width
+        val height = videoContainer.height
+        if (width > 0 && height > 0)
+            runCatching { vlcPlayer?.getVLCVout()?.setWindowSize(width, height) }
+    }
+
     private fun applyDisplayMode() {
-        val frame = if (displayMode > 0) VideoGeometry.fitHalf(viewport.width, viewport.height, videoAspect, displayMode == 2) else null
+        val frame = if (displayMode > 0)
+            VideoGeometry.fitHalf(viewport.width, viewport.height, videoAspect, displayMode == 2)
+        else VideoGeometry.fitFull(viewport.width, viewport.height, videoAspect)
         val clipParams = videoClip.layoutParams as FrameLayout.LayoutParams
         val clipWidth = frame?.width ?: FrameLayout.LayoutParams.MATCH_PARENT
         val clipHeight = frame?.clipHeight ?: FrameLayout.LayoutParams.MATCH_PARENT
@@ -512,7 +614,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         videoContainer.translationY = frame?.videoTop ?: 0f
         exoView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        runCatching { vlcPlayer?.setVideoScale(VlcMediaPlayer.ScaleType.SURFACE_BEST_FIT) }
+        updateViewerChrome()
     }
     private fun identifyCamera() {
         if (identifying) return
@@ -612,6 +714,8 @@ class PlayerActivity : AppCompatActivity() {
         videoReady = true; loadingBox.visibility = View.GONE; errorBox.visibility = View.GONE
         engineText.setText(R.string.status_ao_vivo); updateRecordButton()
         if (first) {
+            updateViewerChrome()
+            requestVlcVideoSize()
             event("Primeiro quadro de vídeo exibido")
             val recovered = pendingRecovered
             pendingRecovered = null
@@ -739,7 +843,9 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 }
             }
-            next.attachViews(vlcView, null, false, false)
+            // TextureView participates in the normal View clip; SurfaceView could draw past it.
+            next.attachViews(vlcView, null, false, true)
+            syncVlcWindowSize()
             // Live555 prefere as credenciais da URL quando há user-info. Alguns firmwares
             // falham nessa negociação: na segunda tentativa, remova APENAS o user-info
             // da URL passada ao player e informe o login via opções RTSP nativas.
@@ -895,6 +1001,7 @@ class PlayerActivity : AppCompatActivity() {
     }
     private fun showFailure() {
         releasePlayers(); recordPending = false; videoReady = false; loadingBox.visibility = View.GONE
+        updateViewerChrome()
         engineText.setText(R.string.status_conectando)
         if (urls.none { CameraStreamProtocol.isRtsp(it) })
             errorText.text = "Não foi possível abrir o vídeo. Confira a URL e o formato transmitido."

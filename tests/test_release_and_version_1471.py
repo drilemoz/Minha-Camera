@@ -12,7 +12,7 @@ class ReleaseAndCompatibility1471(unittest.TestCase):
         about=src('AboutActivity.kt')
         self.assertIn('PhoneReleaseHighlights.history()', about)
         self.assertIn('PhoneReleaseHighlights.latest.first()', version)
-        self.assertIn('Entry("1.4.79", 89',history)
+        self.assertIn('Entry("1.4.81", 91',history)
         self.assertEqual(len(re.findall(r'Entry\("',history)),3)
         self.assertIn('Entry("1.4.80", 90',history)
         self.assertNotIn('1.4.55+65', about)

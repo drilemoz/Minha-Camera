@@ -244,6 +244,12 @@ private fun checkVideoGeometry() {
         for (aspect in listOf(640.0/720, 1.0, 1920.0/2160, 0.5, 2.0)) {
             val upper = VideoGeometry.fitHalf(vw, vh, aspect, false)!!
             val lower = VideoGeometry.fitHalf(vw, vh, aspect, true)!!
+            val whole = VideoGeometry.fitFull(vw, vh, aspect)!!
+            check(whole.width in 1..vw && whole.clipHeight in 1..vh)
+            check(whole.videoTop == 0f && whole.clipHeight == whole.videoHeight)
+            check(kotlin.math.abs(whole.width.toDouble() / whole.clipHeight - aspect) < 0.03)
+            check(VideoGeometry.displayedAspect(aspect, true) == aspect * 2)
+            check(VideoGeometry.displayedAspect(aspect, false) == aspect)
             val selectedHeight = upper.clipHeight
             check(upper.width <= vw && selectedHeight <= vh)
             check(upper.videoTop == 0f && upper.videoHeight == selectedHeight * 2)
@@ -254,6 +260,8 @@ private fun checkVideoGeometry() {
     }
     check(VideoGeometry.fitHalf(0, 500, 1.0, false) == null)
     check(VideoGeometry.fitHalf(500, 500, Double.NaN, false) == null)
+    check(VideoGeometry.displayedAspect(0.0, true) == null)
+    check(VideoGeometry.displayedAspect(Double.MAX_VALUE, true) == null)
     println("OK: lente inteira sem perda de bordas em retrato/horizontal, duas metades e proporções diferentes")
 }
 

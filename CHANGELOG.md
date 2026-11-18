@@ -1,3 +1,11 @@
+## 1.4.82+92 — 2026-11-18
+
+- Visualizador RTSP passa a recortar na tela as duas metades do vídeo composto, via TextureView do LibVLC e dimensões da faixa.
+- Tela cheia preserva a lente escolhida, ocupa a área disponível sem deformar nem cortar suas bordas e permite trocar de lente sem sair.
+- PiP usa a proporção da lente selecionada. Captura JPEG continua disponível e a gravação preserva o fluxo original.
+- Adicionada pesquisa ONVIF para PTZ, infravermelho, luz branca e ajustes. Nenhum comando físico de câmera foi implementado.
+- Mantidos cadastro, atualizador via Releases e assinatura. A validação de reprodução no Android fica pendente.
+
 ## 1.4.81+91 — 2026-11-18
 
 - Atualizador inspirado no Uai Cortes 0.1.307, com repositório fixo, consulta ao abrir e a cada 15 minutos em uso, download automático opcional, progresso, velocidade, pausar/retomar, parar e reiniciar.

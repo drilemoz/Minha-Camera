@@ -1,3 +1,11 @@
+# Minha Câmera 1.4.82 (versionCode 92)
+
+- Em **Imagem**, selecione a lente superior, inferior ou as duas. **Tela cheia** mantém a escolha.
+- Toque no vídeo em tela cheia para mostrar ou ocultar os atalhos **Imagem** e **Sair**.
+- A exibição é local. A gravação e a captura JPEG preservam o vídeo composto de origem.
+- O diagnóstico inclui o modo de exibição e a proporção detectada. Se a proporção não vier, o app avisa em vez de mostrar silenciosamente as duas lentes.
+- A documentação inclui uma investigação sobre controles via ONVIF, sem prometer suporte da câmera a movimento ou luz.
+
 # Minha Câmera 1.4.81 (versionCode 91)
 
 - Atualizações direto do GitHub, sem preencher link ou token.
