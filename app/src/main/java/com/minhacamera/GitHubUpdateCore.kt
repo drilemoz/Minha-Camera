@@ -9,6 +9,7 @@ internal object GitHubUpdateCore {
     const val API_URL = "https://api.github.com/repos/$REPOSITORY/releases?per_page=20"
     private val versionPattern = Regex("^v?(\\d+)\\.(\\d+)\\.(\\d+)$")
     private val shaPattern = Regex("^sha256:([a-fA-F0-9]{64})$")
+    // Manter compatível com a política de publicação e os apps desde a 1.4.81.
     const val MAX_APK_BYTES = 200L * 1024L * 1024L
 
     /** A resposta 206 precisa corresponder ao byte solicitado e ao tamanho da Release. */

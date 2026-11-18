@@ -56,5 +56,5 @@ for attempt in 1 2 3 4; do
     if [[ "$attempt" != 4 ]]; then sleep 3; fi
 done
 
-echo "O GitHub ainda não confirmou os APKs publicados em $tag." >&2
+echo "Não foi possível confirmar o APK universal da Release $tag. Confira a última divergência informada acima." >&2
 exit 1

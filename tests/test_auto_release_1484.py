@@ -120,6 +120,29 @@ esac
         self.assertIn("revisão anterior", result.stdout)
         self.assertFalse(self.log.exists())
 
+    def test_build83_oversized_apk_is_blocked_before_contacting_releases(self):
+        folder = self.folder / "release"
+        bad_size = 218_391_269  # tamanho medido no Build APK #83 / v1.4.85
+        with (folder / f"MinhaCamera-{self.version}-universal.apk").open("r+b") as apk:
+            apk.truncate(bad_size)
+        report_file = folder / "apk-report.json"
+        report = json.loads(report_file.read_text())
+        report["apks"][0]["size_bytes"] = bad_size
+        report_file.write_text(json.dumps(report))
+
+        result = self.run_release()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("218391269 bytes; máximo 209715200 bytes", result.stderr)
+        self.assertFalse(self.log.exists(), "não deve iniciar upload ou criação de Release")
+
+    def test_github_oversized_response_cannot_be_confirmed(self):
+        self.published["assets"][0]["size"] = 200 * 1024 * 1024 + 1
+        self.response.write_text(json.dumps(self.published))
+        result = self.run_release()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Tamanho do APK universal fora dos limites", result.stderr)
+        self.assertFalse(self.summary.exists())
+
     def test_missing_digest_does_not_report_a_successful_update(self):
         self.published["assets"][0]["digest"] = None
         self.response.write_text(json.dumps(self.published))

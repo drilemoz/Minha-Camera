@@ -16,13 +16,13 @@ A 1.4.81 é a primeira versão com atualizador interno. Instale-a uma vez pelo m
 Um artefato de Actions por si só não aparece para o atualizador. Até a 1.4.83, a publicação estava restrita a uma execução manual. A partir da 1.4.84, um push na **main** do repositório oficial publica a Release depois de compilar, assinar e verificar os APKs. No modo manual, **Actions → Build APK → Run workflow**, a opção de publicação vem marcada, mas pode ser desmarcada para compilar sem publicar. O build continua com permissão de leitura e os artefatos permanecem disponíveis no Actions. O segundo job, com permissão de publicação, é responsável por:
 
 1. Recebe apenas o lote que já passou por verificação de identidade, ABIs, hash e certificado permanente.
-2. Confere novamente o arquivo de cada APK contra o relatório, sincroniza `vX.Y.Z` com o código e copia as notas dessa versão.
+2. Confere novamente os APKs contra o relatório e bloqueia o universal acima de 200 MiB antes de criar a Release. Sincroniza `vX.Y.Z` com o código e copia as notas dessa versão.
 3. Publicar a Release no commit compilado, desde que ainda seja a cabeça da `main`, sem substituir tags ou APKs já publicados. Desde a 1.4.85, só é anexado o arquivo direto `MinhaCamera-X.Y.Z-universal.apk`. Não são anexados ZIP, checksum avulso ou APKs por arquitetura.
 4. Confirmar que a API do GitHub informa exatamente um anexo, com URL, tamanho e SHA-256 esperados, e publicar o link direto no resumo. Uma Release já existente e íntegra é mantida sem sobrescrever arquivos.
 
 Os cinco binários e relatórios continuam nos artefatos do Actions. O GitHub gera separadamente links `Source code (zip)` e `Source code (tar.gz)` para cada tag. São arquivos do código-fonte, não anexos do workflow ou APKs para instalar.
 
-Instalações da 1.4.81 ou superiores podem encontrar a 1.4.85 assim que sua Release estiver disponível. Não precisam passar pelas versões intermediárias. Use **Verificar agora** para não esperar o próximo ciclo da versão instalada.
+O Build APK #83 criou a Release 1.4.85, mas seu APK de 218.391.269 bytes foi recusado pela confirmação e ultrapassa o limite do atualizador. A 1.4.86 compacta bibliotecas nativas sem mudar esse limite. Depois da publicação com o mesmo certificado, instalações da 1.4.81 ou superiores poderão pular diretamente para a 1.4.86, sem precisar instalar a 1.4.85. Use **Verificar agora** para não esperar o próximo ciclo da versão instalada.
 
 O atualizador procura um APK `MinhaCamera-X.Y.Z-universal.apk` na Release publicada. O servidor precisa informar o SHA-256 do asset. Antes de entregar o arquivo ao instalador, o app confere hash e tamanho, nome do pacote, versão, versionCode superior e assinatura fixada tanto do APK recebido quanto da instalação.
 
@@ -34,4 +34,4 @@ Roteiro em aparelho: instalar 1.4.81 assinada; disponibilizar uma Release poster
 
 O novo fluxo foi verificado localmente com simulações de publicação de um único APK, rejeição de anexo extra, reexecução e revisão ultrapassada. A Release real e a instalação em aparelho ainda dependem da execução no repositório oficial.
 
-Passaram 216 checagens Python, incluindo os cenários de preparação de publicação e adulteração simulada, além da validação YAML, dos recursos e do versionamento. Os testes Kotlin/JUnit, Gradle, assinatura real, verificação do APK e instalação no Android ainda dependem da CI e de aparelho.
+Na 1.4.86 passaram a suíte Python e os testes JUnit do atualizador. A validação do APK assinado e da instalação continua pendente. Veja [validação do Build APK #83](VALIDATION_1_4_86.md).

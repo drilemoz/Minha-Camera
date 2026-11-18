@@ -35,6 +35,13 @@ class GitHubUpdateCoreTest {
             release("1.4.85", state = "new"), release("1.4.86", size = GitHubUpdateCore.MAX_APK_BYTES + 1)))
     }
 
+    @Test fun installedUpdaterSkipsOversized1485AndAcceptsNextUniversalAtTheExistingLimit() {
+        val invalid1485 = release("1.4.85", size = 218_391_269L)
+        assertNull(parse(invalid1485))
+        val next = release("1.4.86", size = 200L * 1024L * 1024L)
+        assertEquals("1.4.86", parse(invalid1485, next)?.version)
+    }
+
     @Test fun comparesNumericVersionsAndIncludesIntermediateNotes() {
         val update = parse(release("1.4.99"), release("1.4.100"), release("1.4.90"))!!
         assertEquals("1.4.100", update.version)

@@ -1,3 +1,9 @@
+## 1.4.86+96 — 2026-11-18
+
+- Corrigida a causa da falha do Build APK #83: o universal da 1.4.85 tinha 218.391.269 bytes, acima do limite de 209.715.200 bytes nas versões instaladas.
+- As bibliotecas nativas são compactadas antes da assinatura, mantendo as quatro arquiteturas e o limite do atualizador. A CI rejeita o APK fora do limite antes de criar uma Release.
+- Mantida distribuição com um único APK universal, sem alterar pacote, assinatura oficial, câmeras salvas ou fluxo RTSP.
+
 ## 1.4.85+95 — 2026-11-18
 
 - GitHub Releases anexa exclusivamente o APK universal assinado, sem ZIP, checksums ou outras arquiteturas como anexos.

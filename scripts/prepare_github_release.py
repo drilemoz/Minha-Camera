@@ -6,6 +6,8 @@ import json
 import re
 from pathlib import Path
 
+from release_apk_policy import require_updater_apk_size
+
 ROOT = Path(__file__).resolve().parents[1]
 ABIS = ("universal", "armeabi-v7a", "arm64-v8a", "x86", "x86_64")
 
@@ -20,6 +22,9 @@ def prepare(folder: Path, root: Path = ROOT):
     records = report["apks"]
     assert len(records) == 5 and {r["file"] for r in records} == expected
     assert {f.name for f in folder.glob("*.apk")} == expected
+    # Não iniciar upload de um APK que as instalações existentes vão ignorar.
+    universal = folder / f"MinhaCamera-{version}-universal.apk"
+    require_updater_apk_size(universal.stat().st_size)
     for entry in records:
         apk = folder / entry["file"]
         assert apk.is_file() and apk.stat().st_size == entry["size_bytes"]
@@ -46,7 +51,7 @@ def verify_published(folder: Path, release_path: Path, existing: bool = False):
     asset = assets[0]
     expected = next(entry for entry in report["apks"] if entry["file"] == name)
     assert asset["state"] == "uploaded" and asset["browser_download_url"] == prefix + name, name
-    assert 0 < asset["size"] <= 200 * 1024 * 1024, "Tamanho do APK universal fora dos limites do atualizador"
+    require_updater_apk_size(asset["size"])
     digest = asset.get("digest") or ""
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", digest), f"SHA-256 indisponível: {name}"
     if not existing:

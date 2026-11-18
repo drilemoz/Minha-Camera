@@ -1,3 +1,5 @@
+**Novo em 1.4.86:** o Build APK #83 mostrou que o universal da 1.4.85 excedia 200 MiB. A nova versão compacta as bibliotecas nativas e bloqueia APK acima desse limite antes do upload. A Release continua com um único APK universal assinado. Veja [validação da correção](docs/VALIDATION_1_4_86.md).
+
 **Novo em 1.4.85:** cada GitHub Release publica somente o APK universal assinado, como arquivo `.apk` direto. Os APKs por arquitetura e relatórios continuam nos artefatos do Actions. Veja [publicação e validação](docs/GITHUB_UPDATES.md).
 
 **Anterior em 1.4.84:** builds assinados e verificados da branch `main` do repositório oficial publicam automaticamente no GitHub Releases. Os artefatos no Actions continuam disponíveis. O atualizador diferencia ausência de Release, versão sem APK compatível e versão atual, e consulta a cada dois minutos em primeiro plano. Veja [publicação e validação](docs/GITHUB_UPDATES.md).
@@ -26,7 +28,7 @@
 
 # Minha Câmera
 
-**Versão atual: 1.4.85 (versionCode 95)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
+**Versão atual: 1.4.86 (versionCode 96)** · Kotlin / Android · Projeto auxiliar de investigação técnica para o **Vigia IA**. Veja [integração técnica com o Vigia IA](docs/VIGIA_IA_INTEGRATION.md).
 
 **Novo em 1.4.70:** corrige o Build APK 68 (import de `android.view.Gravity` no zoom), elimina o nome duplicado do receptor, coloca tempo ao lado de "Ao vivo" e bateria/carregamento junto da temperatura no painel. Diagnóstico e seleção de codec ficam no cabeçalho; o codec usa submenu embutido com opções MJPEG e H.264 em vez de pop-up. Removidos os cartões redundantes de Codec e Diagnóstico. Preserva a transmissão existente, sem anunciar correção comprovada dos artefatos verdes em H.264. Build Android e testes no aparelho pendentes.
 

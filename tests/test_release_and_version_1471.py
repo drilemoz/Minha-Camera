@@ -12,9 +12,9 @@ class ReleaseAndCompatibility1471(unittest.TestCase):
         about=src('AboutActivity.kt')
         self.assertIn('PhoneReleaseHighlights.history()', about)
         self.assertIn('PhoneReleaseHighlights.latest.first()', version)
-        self.assertIn('Entry("1.4.83", 93',history)
-        self.assertEqual(len(re.findall(r'Entry\("',history)),3)
-        self.assertIn('Entry("1.4.84", 94',history)
+        codes = [int(code) for code in re.findall(r'Entry\("[^"]+", (\d+)', history)]
+        self.assertEqual(len(codes), 3)
+        self.assertEqual(codes, list(range(codes[0], codes[0] - 3, -1)))
         self.assertNotIn('1.4.55+65', about)
         self.assertNotIn('Alternativa de autenticação VLC', version)
     def test_release_and_resources_synced(self):

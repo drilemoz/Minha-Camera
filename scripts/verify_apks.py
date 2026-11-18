@@ -10,6 +10,8 @@ import shutil
 import subprocess
 from zipfile import ZipFile
 
+from release_apk_policy import check_native_compression, require_updater_apk_size
+
 ABIS = {'armeabi-v7a', 'arm64-v8a', 'x86_64', 'x86'}
 LIBS = {'libvlc.so', 'libvlcjni.so', 'libc++_shared.so'}
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,8 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def run(*args):
     return subprocess.check_output([str(a) for a in args], text=True, stderr=subprocess.STDOUT)
 
-def inspect(apk, tools):
+def inspect(apk, tools, require_compression=False):
     with ZipFile(apk) as z:
+        if require_compression:
+            check_native_compression(z.infolist(), apk)
         assert z.testzip() is None, f'CRC inválido: {apk}'
         names = z.namelist()
         assert len(names) == len(set(names)), f'Entradas ZIP duplicadas: {apk}'
@@ -67,7 +71,9 @@ def main():
         assert label not in results and label in ABIS | {'universal'}
         assert str(element['versionCode']) == code and element['versionName'] == version
         apk = args.input / element['outputFile']
-        result = inspect(apk, tools)
+        if label == 'universal':
+            require_updater_apk_size(apk.stat().st_size)
+        result = inspect(apk, tools, require_compression=True)
         assert result['identity'] == expected_identity, f'Identidade divergente: {apk}'
         assert result['abis'] == (ABIS if label == 'universal' else {label}), f'ABIs inesperadas: {apk}, {result["abis"]}'
         result['source'] = apk
@@ -105,7 +111,7 @@ def main():
         '| APK | Bytes | MB (decimal) | Redução / Universal |\n|---|---:|---:|---:|\n' + '\n'.join(rows) + \
         f'\n\nApplicationId: com.minhacamera; versionName: {version}; versionCode: {code}.\n\n' + \
         f'Certificado SHA-256 comum: `{universal["certificate"]}`.\n\n' + \
-        'CRC ZIP, alinhamento ZIP, assinaturas, metadados, ABIs exatas, bibliotecas LibVLC e igualdade do código/recursos: aprovados.\n\n' + \
+        'CRC ZIP, alinhamento, assinaturas, ABIs, compressão nativa, limite do atualizador e igualdade do código/recursos: aprovados.\n\n' + \
         'Mesma assinatura neste conjunto não garante atualização sobre APKs de outro ambiente. Nenhum teste físico de câmera/decodificação/instalação foi realizado por este verificador.\n'
     if previous:
         report += f'\nAPK anterior: {previous["identity"]}; certificado `{previous["certificate"]}`; assinatura coincide: **{previous["signature_matches"]}**.\n'

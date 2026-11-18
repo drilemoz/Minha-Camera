@@ -15,8 +15,8 @@ android {
         applicationId = "com.minhacamera"
         minSdk = 24
         targetSdk = 34
-        versionCode = 95
-        versionName = "1.4.85"
+        versionCode = 96
+        versionName = "1.4.86"
         val signer = rootProject.file("docs/SIGNING_CERT_SHA256.txt").readText().trim()
             .replace(":", "").lowercase()
         require(Regex("[0-9a-f]{64}").matches(signer)) { "Certificado de Release inválido" }
@@ -31,6 +31,14 @@ android {
             reset()
             include("armeabi-v7a", "arm64-v8a", "x86_64", "x86")
             isUniversalApk = true
+        }
+    }
+
+    // Compacta as bibliotecas nativas antes da assinatura. O universal precisa
+    // ficar dentro de 200 MiB para atualizar instalações a partir da 1.4.81.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 

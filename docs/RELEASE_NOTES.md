@@ -1,3 +1,8 @@
+# Minha Câmera 1.4.86 (versionCode 96)
+
+- Corrige a falha de publicação da 1.4.85. As bibliotecas nativas passam a ser compactadas para acomodar o APK universal no limite de 200 MiB do atualizador.
+- Mantém um único APK direto na Release, as quatro arquiteturas, o certificado permanente e o caminho de atualização das versões já instaladas.
+
 # Minha Câmera 1.4.85 (versionCode 95)
 
 - GitHub Releases oferece um único APK universal assinado, pronto para baixar como `.apk`.
